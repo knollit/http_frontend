@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"io/ioutil"
 	"log"
@@ -69,20 +70,42 @@ func (s *server) rootHandler() http.Handler {
 			json.NewEncoder(w).Encode(orgsMsg)
 			return
 		} else if r.Method == "POST" {
-			// if err := r.ParseForm(); err != nil {
-			// 	http.Error(w, "Bad request", http.StatusBadRequest)
-			// 	return
-			// }
-			// org := organization{Name: r.Form.Get("name")}
-			// if err := org.save(s); err != nil {
-			// 	log.Print(err)
-			// 	http.Error(w, "Internal application error", http.StatusInternalServerError)
-			// 	return
-			// }
-			// if org.err != nil {
-			// 	http.Error(w, org.err.Error(), http.StatusBadRequest)
-			// 	return
-			// }
+			if err := r.ParseForm(); err != nil {
+				http.Error(w, "Bad request", http.StatusBadRequest)
+				return
+			}
+
+			orgMsg := &orgPB.Organization{Name: r.Form.Get("name")}
+			data, err := proto.Marshal(orgMsg)
+			if err != nil {
+				log.Print(err)
+				http.Error(w, "Internal application error", http.StatusInternalServerError)
+				return
+			}
+
+			res, err := http.Post("http://"+os.Getenv("ORGSVC_PORT_80_TCP_ADDR"), "application/octet-stream", bytes.NewBuffer(data))
+			if err != nil {
+				log.Printf("Request error %v", err)
+				http.Error(w, "Internal application error", http.StatusInternalServerError)
+				return
+			}
+			defer res.Body.Close()
+			buf, err := ioutil.ReadAll(res.Body)
+			if err != nil {
+				log.Print(err)
+				http.Error(w, "Internal application error", http.StatusInternalServerError)
+				return
+			}
+			err = proto.Unmarshal(buf, orgMsg)
+			if err != nil {
+				log.Print(err)
+				http.Error(w, "Internal application error", http.StatusInternalServerError)
+				return
+			}
+			if len(orgMsg.Error) > 0 {
+				http.Error(w, orgMsg.Error, http.StatusBadRequest)
+				return
+			}
 			w.WriteHeader(http.StatusOK)
 			return
 		} else {

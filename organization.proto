@@ -2,6 +2,7 @@ syntax = "proto3";
 
 message Organization {
   string name = 1;
+  string error = 2;
 }
 
 message Organizations {
