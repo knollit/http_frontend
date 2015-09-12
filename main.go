@@ -1,10 +1,11 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
-	"io/ioutil"
+	"fmt"
+	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 
@@ -46,21 +47,32 @@ func (s *server) Close() error {
 func (s *server) rootHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
-			res, err := http.Get("http://" + os.Getenv("ORGSVC_PORT_80_TCP_ADDR"))
+			req := &orgPB.Request{
+				Action: orgPB.Request_INDEX,
+			}
+			data, err := proto.Marshal(req)
+			if err != nil {
+				log.Printf("Request marshal error %v", err)
+				http.Error(w, "Internal application error", http.StatusInternalServerError)
+				return
+			}
+			conn, err := net.Dial("tcp", fmt.Sprintf("%v:13800", os.Getenv("ORGSVC_PORT_13800_TCP_ADDR")))
 			if err != nil {
 				log.Printf("Request error %v", err)
 				http.Error(w, "Internal application error", http.StatusInternalServerError)
 				return
 			}
-			defer res.Body.Close()
-			buf, err := ioutil.ReadAll(res.Body)
-			if err != nil {
-				log.Print(err)
+			defer conn.Close()
+			conn.Write(data)
+			buf := make([]byte, 1024)
+			i, err := conn.Read(buf)
+			if err != nil && err != io.EOF {
+				log.Printf("Response error %v", err)
 				http.Error(w, "Internal application error", http.StatusInternalServerError)
 				return
 			}
 			orgsMsg := &orgPB.Organizations{}
-			err = proto.Unmarshal(buf, orgsMsg)
+			err = proto.Unmarshal(buf[:i], orgsMsg)
 			if err != nil {
 				log.Print(err)
 				http.Error(w, "Internal application error", http.StatusInternalServerError)
@@ -74,29 +86,33 @@ func (s *server) rootHandler() http.Handler {
 				http.Error(w, "Bad request", http.StatusBadRequest)
 				return
 			}
-
-			orgMsg := &orgPB.Organization{Name: r.Form.Get("name")}
-			data, err := proto.Marshal(orgMsg)
+			req := &orgPB.Request{
+				Action:       orgPB.Request_NEW,
+				Organization: &orgPB.Organization{Name: r.Form.Get("name")},
+			}
+			data, err := proto.Marshal(req)
 			if err != nil {
 				log.Print(err)
 				http.Error(w, "Internal application error", http.StatusInternalServerError)
 				return
 			}
-
-			res, err := http.Post("http://"+os.Getenv("ORGSVC_PORT_80_TCP_ADDR"), "application/octet-stream", bytes.NewBuffer(data))
+			conn, err := net.Dial("tcp", fmt.Sprintf("%v:13800", os.Getenv("ORGSVC_PORT_13800_TCP_ADDR")))
 			if err != nil {
 				log.Printf("Request error %v", err)
 				http.Error(w, "Internal application error", http.StatusInternalServerError)
 				return
 			}
-			defer res.Body.Close()
-			buf, err := ioutil.ReadAll(res.Body)
-			if err != nil {
-				log.Print(err)
+			defer conn.Close()
+			conn.Write(data)
+			buf := make([]byte, 1024)
+			i, err := conn.Read(buf)
+			if err != nil && err != io.EOF {
+				log.Printf("Response error %v", err)
 				http.Error(w, "Internal application error", http.StatusInternalServerError)
 				return
 			}
-			err = proto.Unmarshal(buf, orgMsg)
+			orgMsg := &orgPB.Organization{}
+			err = proto.Unmarshal(buf[:i], orgMsg)
 			if err != nil {
 				log.Print(err)
 				http.Error(w, "Internal application error", http.StatusInternalServerError)

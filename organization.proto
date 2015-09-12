@@ -1,5 +1,14 @@
 syntax = "proto3";
 
+message Request {
+  enum Action {
+    NEW = 0;
+    INDEX = 1;
+  }
+  Action action = 1;
+  Organization organization = 2;
+}
+
 message Organization {
   string name = 1;
   string error = 2;
