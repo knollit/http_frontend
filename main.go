@@ -3,13 +3,13 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"net/http"
 	"os"
 
 	"github.com/golang/protobuf/proto"
+	"github.com/mikeraimondi/api_service"
 	orgPB "github.com/mikeraimondi/api_service/organizations/proto"
 )
 
@@ -63,16 +63,15 @@ func (s *server) rootHandler() http.Handler {
 				return
 			}
 			defer conn.Close()
-			conn.Write(data)
-			buf := make([]byte, 1024)
-			i, err := conn.Read(buf)
-			if err != nil && err != io.EOF {
+			apiService.WriteWithSize(conn, data)
+			buf, err := apiService.ReadWithSize(conn)
+			if err != nil {
 				log.Printf("Response error %v", err)
 				http.Error(w, "Internal application error", http.StatusInternalServerError)
 				return
 			}
 			orgsMsg := &orgPB.Organizations{}
-			err = proto.Unmarshal(buf[:i], orgsMsg)
+			err = proto.Unmarshal(buf, orgsMsg)
 			if err != nil {
 				log.Print(err)
 				http.Error(w, "Internal application error", http.StatusInternalServerError)
@@ -103,16 +102,15 @@ func (s *server) rootHandler() http.Handler {
 				return
 			}
 			defer conn.Close()
-			conn.Write(data)
-			buf := make([]byte, 1024)
-			i, err := conn.Read(buf)
-			if err != nil && err != io.EOF {
+			apiService.WriteWithSize(conn, data)
+			buf, err := apiService.ReadWithSize(conn)
+			if err != nil {
 				log.Printf("Response error %v", err)
 				http.Error(w, "Internal application error", http.StatusInternalServerError)
 				return
 			}
 			orgMsg := &orgPB.Organization{}
-			err = proto.Unmarshal(buf[:i], orgMsg)
+			err = proto.Unmarshal(buf, orgMsg)
 			if err != nil {
 				log.Print(err)
 				http.Error(w, "Internal application error", http.StatusInternalServerError)
