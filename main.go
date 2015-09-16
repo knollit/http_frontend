@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -46,65 +47,42 @@ func (s *server) Close() error {
 
 func (s *server) rootHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		req := &orgPB.Request{}
 		if r.Method == "GET" {
-			req := &orgPB.Request{
-				Action: orgPB.Request_INDEX,
-			}
-			data, err := proto.Marshal(req)
-			if err != nil {
-				log.Printf("Request marshal error %v", err)
-				http.Error(w, "Internal application error", http.StatusInternalServerError)
-				return
-			}
-			conn, err := net.Dial("tcp", fmt.Sprintf("%v:13800", os.Getenv("ORGSVC_PORT_13800_TCP_ADDR")))
-			if err != nil {
-				log.Printf("Request error %v", err)
-				http.Error(w, "Internal application error", http.StatusInternalServerError)
-				return
-			}
-			defer conn.Close()
-			apiService.WriteWithSize(conn, data)
-			buf, err := apiService.ReadWithSize(conn)
-			if err != nil {
-				log.Printf("Response error %v", err)
-				http.Error(w, "Internal application error", http.StatusInternalServerError)
-				return
-			}
-			orgsMsg := &orgPB.Organizations{}
-			err = proto.Unmarshal(buf, orgsMsg)
-			if err != nil {
-				log.Print(err)
-				http.Error(w, "Internal application error", http.StatusInternalServerError)
-				return
-			}
-			w.Header().Set("Content-Type", "application/json; charset=utf-8")
-			json.NewEncoder(w).Encode(orgsMsg)
-			return
+			req.Action = orgPB.Request_INDEX
 		} else if r.Method == "POST" {
 			if err := r.ParseForm(); err != nil {
 				http.Error(w, "Bad request", http.StatusBadRequest)
 				return
 			}
-			req := &orgPB.Request{
-				Action:       orgPB.Request_NEW,
-				Organization: &orgPB.Organization{Name: r.Form.Get("name")},
-			}
-			data, err := proto.Marshal(req)
-			if err != nil {
-				log.Print(err)
-				http.Error(w, "Internal application error", http.StatusInternalServerError)
-				return
-			}
-			conn, err := net.Dial("tcp", fmt.Sprintf("%v:13800", os.Getenv("ORGSVC_PORT_13800_TCP_ADDR")))
-			if err != nil {
-				log.Printf("Request error %v", err)
-				http.Error(w, "Internal application error", http.StatusInternalServerError)
-				return
-			}
-			defer conn.Close()
-			apiService.WriteWithSize(conn, data)
+			req.Action = orgPB.Request_NEW
+			req.Organization = &orgPB.Organization{Name: r.Form.Get("name")}
+		} else {
+			w.Header().Set("Allow", "GET, POST")
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		data, err := proto.Marshal(req)
+		if err != nil {
+			log.Printf("Request marshal error %v", err)
+			http.Error(w, "Internal application error", http.StatusInternalServerError)
+			return
+		}
+		conn, err := net.Dial("tcp", fmt.Sprintf("%v:13800", os.Getenv("ORGSVC_PORT_13800_TCP_ADDR")))
+		if err != nil {
+			log.Printf("Request error %v", err)
+			http.Error(w, "Internal application error", http.StatusInternalServerError)
+			return
+		}
+		defer conn.Close()
+		apiService.WriteWithSize(conn, data)
+		var response []*orgPB.Organization
+		for {
 			buf, err := apiService.ReadWithSize(conn)
-			if err != nil {
+			if err == io.EOF {
+				break
+			} else if err != nil {
 				log.Printf("Response error %v", err)
 				http.Error(w, "Internal application error", http.StatusInternalServerError)
 				return
@@ -117,14 +95,16 @@ func (s *server) rootHandler() http.Handler {
 				return
 			}
 			if len(orgMsg.Error) > 0 {
-				http.Error(w, orgMsg.Error, http.StatusBadRequest)
-				return
+				w.WriteHeader(http.StatusBadRequest)
 			}
-			w.WriteHeader(http.StatusOK)
-			return
-		} else {
-			w.Header().Set("Allow", "GET, POST")
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			response = append(response, orgMsg)
 		}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		if len(response) == 1 {
+			json.NewEncoder(w).Encode(response[0])
+			return
+		}
+		json.NewEncoder(w).Encode(response)
+		return
 	})
 }

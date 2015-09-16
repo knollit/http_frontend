@@ -13,7 +13,3 @@ message Organization {
   string name = 1;
   string error = 2;
 }
-
-message Organizations {
-  repeated Organization orgs = 1;
-}
