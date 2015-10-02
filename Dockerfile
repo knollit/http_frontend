@@ -1,6 +1,7 @@
 FROM centurylink/ca-certs
 
 COPY json_api /
+COPY certs /
 
 EXPOSE 80
 
