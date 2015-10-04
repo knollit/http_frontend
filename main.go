@@ -2,26 +2,27 @@ package main
 
 import (
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
+	"time"
 
+	"github.com/boltdb/bolt"
 	"github.com/golang/protobuf/proto"
 	"github.com/mikeraimondi/api_service"
 	orgPB "github.com/mikeraimondi/api_service/organizations/proto"
 )
 
 var (
-	caPath   = flag.String("ca-path", os.Getenv("TLS_CA_PATH"), "Path to CA file")
 	certPath = flag.String("cert-path", os.Getenv("TLS_CERT_PATH"), "Path to cert file")
 	keyPath  = flag.String("key-path", os.Getenv("TLS_KEY_PATH"), "Path to private key file")
 )
+
+const tlsSessionBucket = "TLSSessionCache"
 
 func main() {
 	// Load client cert
@@ -30,21 +31,24 @@ func main() {
 		log.Fatal("Failed to open client cert and/or key: ", err)
 	}
 
-	// Load CA cert
-	caCert, err := ioutil.ReadFile(*caPath)
+	db, err := bolt.Open("json_api.db", 0600, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
-		log.Fatal("Failed to open CA cert: ", err)
+		log.Fatal("Failed to open DB: ", err)
 	}
-	caCertPool := x509.NewCertPool()
-	if ok := caCertPool.AppendCertsFromPEM(caCert); !ok {
-		log.Fatal("Failed to parse CA cert")
-	}
+	db.Update(func(tx *bolt.Tx) error {
+		_, err := tx.CreateBucket([]byte(tlsSessionBucket))
+		if err != nil {
+			log.Fatal("Failed to create bucket: ", err)
+			return err
+		}
+		return nil
+	})
 
 	server := &server{
 		TLSConf: &tls.Config{
 			Certificates:       []tls.Certificate{cert},
-			RootCAs:            caCertPool,
 			InsecureSkipVerify: true, //TODO dev only
+			ClientSessionCache: sessionCache{DB: db},
 		},
 	}
 	defer func() {
@@ -109,10 +113,14 @@ func (s *server) rootHandler() http.Handler {
 			return
 		}
 		defer conn.Close()
-		apiService.WriteWithSize(conn, data)
+		if _, err := apiService.WriteWithSize(conn, data); err != nil {
+			log.Printf("Request error %v", err)
+			http.Error(w, "Internal application error", http.StatusInternalServerError)
+			return
+		}
 		var response []*orgPB.Organization
 		for {
-			buf, err := apiService.ReadWithSize(conn)
+			buf, _, err := apiService.ReadWithSize(conn)
 			if err == io.EOF {
 				break
 			} else if err != nil {
@@ -139,5 +147,51 @@ func (s *server) rootHandler() http.Handler {
 		}
 		json.NewEncoder(w).Encode(response)
 		return
+	})
+}
+
+type sessionCache struct {
+	DB *bolt.DB
+}
+
+func (c sessionCache) Get(sessionKey string) (session *tls.ClientSessionState, ok bool) {
+	c.DB.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(tlsSessionBucket))
+		v := b.Get([]byte(sessionKey))
+		if v != nil {
+			session = &tls.ClientSessionState{}
+			err := json.Unmarshal(v, session)
+			if err != nil {
+				log.Print("Error retrieving sessionState from cache: ", err)
+				ok = false
+			} else {
+				ok = true
+			}
+		} else {
+			ok = false
+		}
+		return nil
+	})
+	if ok {
+		log.Println("Session cache hit")
+	} else {
+		log.Println("Session cache miss")
+	}
+	return
+}
+
+func (c sessionCache) Put(sessionKey string, cs *tls.ClientSessionState) {
+	json, err := json.Marshal(cs)
+	if err != nil {
+		log.Print("Error saving sessionState to cache: ", err)
+		return
+	}
+	c.DB.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(tlsSessionBucket))
+		err := b.Put([]byte(sessionKey), json)
+		if err != nil {
+			log.Print("Error saving sessionState to cache: ", err)
+		}
+		return err
 	})
 }
