@@ -9,9 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"time"
 
-	"github.com/boltdb/bolt"
 	"github.com/golang/protobuf/proto"
 	"github.com/mikeraimondi/api_service"
 	orgPB "github.com/mikeraimondi/api_service/organizations/proto"
@@ -31,26 +29,14 @@ func main() {
 		log.Fatal("Failed to open client cert and/or key: ", err)
 	}
 
-	db, err := bolt.Open("json_api.db", 0600, &bolt.Options{Timeout: 1 * time.Second})
-	if err != nil {
-		log.Fatal("Failed to open DB: ", err)
-	}
-	db.Update(func(tx *bolt.Tx) error {
-		_, err := tx.CreateBucket([]byte(tlsSessionBucket))
-		if err != nil {
-			log.Fatal("Failed to create bucket: ", err)
-			return err
-		}
-		return nil
-	})
-
 	server := &server{
 		TLSConf: &tls.Config{
 			Certificates:       []tls.Certificate{cert},
 			InsecureSkipVerify: true, //TODO dev only
-			ClientSessionCache: sessionCache{DB: db},
+			ClientSessionCache: tls.NewLRUClientSessionCache(1000),
 		},
 	}
+
 	defer func() {
 		if err := server.Close(); err != nil {
 			log.Println("Failed to close server: ", err)
@@ -147,51 +133,5 @@ func (s *server) rootHandler() http.Handler {
 		}
 		json.NewEncoder(w).Encode(response)
 		return
-	})
-}
-
-type sessionCache struct {
-	DB *bolt.DB
-}
-
-func (c sessionCache) Get(sessionKey string) (session *tls.ClientSessionState, ok bool) {
-	c.DB.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(tlsSessionBucket))
-		v := b.Get([]byte(sessionKey))
-		if v != nil {
-			session = &tls.ClientSessionState{}
-			err := json.Unmarshal(v, session)
-			if err != nil {
-				log.Print("Error retrieving sessionState from cache: ", err)
-				ok = false
-			} else {
-				ok = true
-			}
-		} else {
-			ok = false
-		}
-		return nil
-	})
-	if ok {
-		log.Println("Session cache hit")
-	} else {
-		log.Println("Session cache miss")
-	}
-	return
-}
-
-func (c sessionCache) Put(sessionKey string, cs *tls.ClientSessionState) {
-	json, err := json.Marshal(cs)
-	if err != nil {
-		log.Print("Error saving sessionState to cache: ", err)
-		return
-	}
-	c.DB.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(tlsSessionBucket))
-		err := b.Put([]byte(sessionKey), json)
-		if err != nil {
-			log.Print("Error saving sessionState to cache: ", err)
-		}
-		return err
 	})
 }
