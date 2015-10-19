@@ -11,8 +11,8 @@ import (
 	"os"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/mikeraimondi/api_service"
-	orgPB "github.com/mikeraimondi/api_service/organizations/proto"
+	"github.com/mikeraimondi/knollit/common"
+	orgPB "github.com/mikeraimondi/knollit/organizations/proto"
 )
 
 var (
@@ -99,14 +99,14 @@ func (s *server) rootHandler() http.Handler {
 			return
 		}
 		defer conn.Close()
-		if _, err := apiService.WriteWithSize(conn, data); err != nil {
+		if _, err := common.WriteWithSize(conn, data); err != nil {
 			log.Printf("Request error %v", err)
 			http.Error(w, "Internal application error", http.StatusInternalServerError)
 			return
 		}
 		var response []*orgPB.Organization
 		for {
-			buf, _, err := apiService.ReadWithSize(conn)
+			buf, _, err := common.ReadWithSize(conn)
 			if err == io.EOF {
 				break
 			} else if err != nil {
