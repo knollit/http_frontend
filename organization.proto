@@ -10,6 +10,6 @@ message Request {
 }
 
 message Organization {
-  string name = 1;
-  string error = 2;
+  string error = 1;
+  string name = 2;
 }

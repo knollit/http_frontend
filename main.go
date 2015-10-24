@@ -12,7 +12,7 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/mikeraimondi/knollit/common"
-	orgPB "github.com/mikeraimondi/knollit/organizations/proto"
+	organizationProto "github.com/mikeraimondi/knollit/organizations/proto"
 )
 
 var (
@@ -70,16 +70,16 @@ func (s *server) Close() error {
 
 func (s *server) rootHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		req := &orgPB.Request{}
+		req := &organizationProto.Request{}
 		if r.Method == "GET" {
-			req.Action = orgPB.Request_INDEX
+			req.Action = organizationProto.Request_INDEX
 		} else if r.Method == "POST" {
 			if err := r.ParseForm(); err != nil {
 				http.Error(w, "Bad request", http.StatusBadRequest)
 				return
 			}
-			req.Action = orgPB.Request_NEW
-			req.Organization = &orgPB.Organization{Name: r.Form.Get("name")}
+			req.Action = organizationProto.Request_NEW
+			req.Organization = &organizationProto.Organization{Name: r.Form.Get("name")}
 		} else {
 			w.Header().Set("Allow", "GET, POST")
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -104,7 +104,7 @@ func (s *server) rootHandler() http.Handler {
 			http.Error(w, "Internal application error", http.StatusInternalServerError)
 			return
 		}
-		var response []*orgPB.Organization
+		var response []*organizationProto.Organization
 		for {
 			buf, _, err := common.ReadWithSize(conn)
 			if err == io.EOF {
@@ -114,7 +114,7 @@ func (s *server) rootHandler() http.Handler {
 				http.Error(w, "Internal application error", http.StatusInternalServerError)
 				return
 			}
-			orgMsg := &orgPB.Organization{}
+			orgMsg := &organizationProto.Organization{}
 			err = proto.Unmarshal(buf, orgMsg)
 			if err != nil {
 				log.Print(err)
