@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 
@@ -20,8 +21,6 @@ var (
 	keyPath  = flag.String("key-path", os.Getenv("TLS_KEY_PATH"), "Path to private key file")
 )
 
-const tlsSessionBucket = "TLSSessionCache"
-
 func main() {
 	// Load client cert
 	cert, err := tls.LoadX509KeyPair(*certPath, *keyPath)
@@ -29,11 +28,14 @@ func main() {
 		log.Fatal("Failed to open client cert and/or key: ", err)
 	}
 
+	tlsConf := &tls.Config{
+		Certificates:       []tls.Certificate{cert},
+		InsecureSkipVerify: true, //TODO dev only
+		ClientSessionCache: tls.NewLRUClientSessionCache(1000),
+	}
 	server := &server{
-		TLSConf: &tls.Config{
-			Certificates:       []tls.Certificate{cert},
-			InsecureSkipVerify: true, //TODO dev only
-			ClientSessionCache: tls.NewLRUClientSessionCache(1000),
+		getEndpointConn: func() (net.Conn, error) {
+			return tls.Dial("tcp", fmt.Sprintf("%v:13800", os.Getenv("ORGSVC_PORT_13800_TCP_ADDR")), tlsConf)
 		},
 	}
 
@@ -47,7 +49,7 @@ func main() {
 }
 
 type server struct {
-	TLSConf *tls.Config
+	getEndpointConn func() (net.Conn, error)
 }
 
 func (s *server) handler() http.Handler {
@@ -92,7 +94,7 @@ func (s *server) rootHandler() http.Handler {
 			http.Error(w, "Internal application error", http.StatusInternalServerError)
 			return
 		}
-		conn, err := tls.Dial("tcp", fmt.Sprintf("%v:13800", os.Getenv("ORGSVC_PORT_13800_TCP_ADDR")), s.TLSConf)
+		conn, err := s.getEndpointConn()
 		if err != nil {
 			log.Printf("Request error %v", err)
 			http.Error(w, "Internal application error", http.StatusInternalServerError)

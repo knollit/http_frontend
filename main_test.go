@@ -3,11 +3,12 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 type endpointMock struct {
@@ -26,12 +27,34 @@ func (e *endpointMock) Close() error {
 	return nil
 }
 
+func (e *endpointMock) LocalAddr() net.Addr {
+	addrs, _ := net.InterfaceAddrs()
+	return addrs[0]
+}
+
+func (e *endpointMock) RemoteAddr() net.Addr {
+	addrs, _ := net.InterfaceAddrs()
+	return addrs[0]
+}
+
+func (e *endpointMock) SetDeadline(t time.Time) error {
+	return nil
+}
+
+func (e *endpointMock) SetReadDeadline(t time.Time) error {
+	return nil
+}
+
+func (e *endpointMock) SetWriteDeadline(t time.Time) error {
+	return nil
+}
+
 func TestGETEndpoint(t *testing.T) {
 	//TODO setup
 
 	e := &endpointMock{}
 	s := &server{
-		RWFunc: func() (rwc io.ReadWriteCloser, err error) {
+		getEndpointConn: func() (net.Conn, error) {
 			return e, nil
 		},
 	}
