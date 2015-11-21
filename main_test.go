@@ -9,6 +9,10 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/google/flatbuffers/go"
+	"github.com/mikeraimondi/knollit/common"
+	"github.com/mikeraimondi/knollit/http_frontend/organizations"
 )
 
 type endpointMock struct {
@@ -49,9 +53,8 @@ func (e *endpointMock) SetWriteDeadline(t time.Time) error {
 	return nil
 }
 
-func TestGETEndpoint(t *testing.T) {
-	//TODO setup
-
+func TestGETOrgs(t *testing.T) {
+	// Start test server
 	e := &endpointMock{}
 	s := &server{
 		getOrgSvcConn: func() (net.Conn, error) {
@@ -61,22 +64,36 @@ func TestGETEndpoint(t *testing.T) {
 	ts := httptest.NewServer(s.rootHandler())
 	defer ts.Close()
 
-	res, err := http.Get(ts.URL + "/testOrg/testEndpoint/v1")
+	// Prepare response from org svc
+	b := flatbuffers.NewBuilder(0)
+	const orgName = "testOrg"
+	namePosition := b.CreateByteString([]byte(orgName))
+	organizations.OrganizationStart(b)
+	organizations.OrganizationAddName(b, namePosition)
+	orgPosition := organizations.OrganizationEnd(b)
+	b.Finish(orgPosition)
+	common.WriteWithSize(&e.buf, b.Bytes[b.Head():])
+
+	// Do test
+	res, err := http.Get(ts.URL + "/organizations")
 	if err != nil {
 		t.Fatal("GET error: ", err)
 	}
 	if expectedStatus := 200; res.StatusCode != expectedStatus {
 		t.Fatalf("Expected %v status, got %v", expectedStatus, res.StatusCode)
 	}
-	endpointData, err := ioutil.ReadAll(res.Body)
+	orgData, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		t.Fatal("Error reading response body: ", err)
 	}
-	var endpoint map[string]string
-	if err := json.Unmarshal(endpointData, &endpoint); err != nil {
+	var organizations map[string]string
+	if err := json.Unmarshal(orgData, &organizations); err != nil {
 		t.Fatal("Error unmarshalling response data: ", err)
 	}
-	if len(endpoint["URL"]) == 0 {
-		t.Fatalf("Expected JSON with a URL property. Got: %v", string(endpointData))
+	if len(organizations["name"]) == 0 {
+		t.Fatalf("Expected JSON with a URL property. Got: %v", string(orgData))
+	}
+	if organizations["name"] != orgName {
+		t.Fatalf("Expected %v for name. Got %v", orgName, organizations["name"])
 	}
 }

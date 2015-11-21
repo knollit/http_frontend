@@ -131,7 +131,7 @@ func (s *server) rootHandler() http.Handler {
 }
 
 type organization struct {
-	Name  string
+	Name  string `json:"name"`
 	Error string
 }
 
