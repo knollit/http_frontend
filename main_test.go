@@ -54,7 +54,7 @@ func TestGETEndpoint(t *testing.T) {
 
 	e := &endpointMock{}
 	s := &server{
-		getEndpointConn: func() (net.Conn, error) {
+		getOrgSvcConn: func() (net.Conn, error) {
 			return e, nil
 		},
 	}

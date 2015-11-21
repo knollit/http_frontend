@@ -1,0 +1,11 @@
+namespace organizations;
+
+enum Action : byte { New, Index, Read }
+
+table Organization {
+  error:string;
+  action:Action;
+  name:string;
+}
+
+root_type Organization;

@@ -11,9 +11,9 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/golang/protobuf/proto"
+	"github.com/google/flatbuffers/go"
 	"github.com/mikeraimondi/knollit/common"
-	organizationProto "github.com/mikeraimondi/knollit/organizations/proto"
+	"github.com/mikeraimondi/knollit/http_frontend/organizations"
 )
 
 var (
@@ -34,7 +34,7 @@ func main() {
 		ClientSessionCache: tls.NewLRUClientSessionCache(1000),
 	}
 	server := &server{
-		getEndpointConn: func() (net.Conn, error) {
+		getOrgSvcConn: func() (net.Conn, error) {
 			return tls.Dial("tcp", fmt.Sprintf("%v:13800", os.Getenv("ORGSVC_PORT_13800_TCP_ADDR")), tlsConf)
 		},
 	}
@@ -49,7 +49,7 @@ func main() {
 }
 
 type server struct {
-	getEndpointConn func() (net.Conn, error)
+	getOrgSvcConn func() (net.Conn, error)
 }
 
 func (s *server) handler() http.Handler {
@@ -72,41 +72,39 @@ func (s *server) Close() error {
 
 func (s *server) rootHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		req := &organizationProto.Request{}
+		b := flatbuffers.NewBuilder(0)
 		if r.Method == "GET" {
-			req.Action = organizationProto.Request_INDEX
+			organizations.OrganizationStart(b)
+			organizations.OrganizationAddAction(b, organizations.ActionIndex)
 		} else if r.Method == "POST" {
 			if err := r.ParseForm(); err != nil {
 				http.Error(w, "Bad request", http.StatusBadRequest)
 				return
 			}
-			req.Action = organizationProto.Request_NEW
-			req.Organization = &organizationProto.Organization{Name: r.Form.Get("name")}
+			namePosition := b.CreateByteString([]byte(r.Form.Get("name")))
+			organizations.OrganizationStart(b)
+			organizations.OrganizationAddName(b, namePosition)
 		} else {
 			w.Header().Set("Allow", "GET, POST")
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
+		orgPosition := organizations.OrganizationEnd(b)
+		b.Finish(orgPosition)
 
-		data, err := proto.Marshal(req)
-		if err != nil {
-			log.Printf("Request marshal error %v", err)
-			http.Error(w, "Internal application error", http.StatusInternalServerError)
-			return
-		}
-		conn, err := s.getEndpointConn()
+		conn, err := s.getOrgSvcConn()
 		if err != nil {
 			log.Printf("Request error %v", err)
 			http.Error(w, "Internal application error", http.StatusInternalServerError)
 			return
 		}
 		defer conn.Close()
-		if _, err := common.WriteWithSize(conn, data); err != nil {
+		if _, err := common.WriteWithSize(conn, b.Bytes[b.Head():]); err != nil {
 			log.Printf("Request error %v", err)
 			http.Error(w, "Internal application error", http.StatusInternalServerError)
 			return
 		}
-		var response []*organizationProto.Organization
+		var response []organization
 		for {
 			buf, _, err := common.ReadWithSize(conn)
 			if err == io.EOF {
@@ -116,17 +114,11 @@ func (s *server) rootHandler() http.Handler {
 				http.Error(w, "Internal application error", http.StatusInternalServerError)
 				return
 			}
-			orgMsg := &organizationProto.Organization{}
-			err = proto.Unmarshal(buf, orgMsg)
-			if err != nil {
-				log.Print(err)
-				http.Error(w, "Internal application error", http.StatusInternalServerError)
-				return
-			}
-			if len(orgMsg.Error) > 0 {
+			orgMsg := organizations.GetRootAsOrganization(buf, 0)
+			if len(orgMsg.Error()) > 0 {
 				w.WriteHeader(http.StatusBadRequest)
 			}
-			response = append(response, orgMsg)
+			response = append(response, organizationFromFlatBuffer(orgMsg))
 		}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		if len(response) == 1 {
@@ -136,4 +128,16 @@ func (s *server) rootHandler() http.Handler {
 		json.NewEncoder(w).Encode(response)
 		return
 	})
+}
+
+type organization struct {
+	Name  string
+	Error string
+}
+
+func organizationFromFlatBuffer(org *organizations.Organization) organization {
+	return organization{
+		Name:  string(org.Name()),
+		Error: string(org.Error()),
+	}
 }
