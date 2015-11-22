@@ -15,50 +15,50 @@ import (
 	"github.com/mikeraimondi/knollit/http_frontend/organizations"
 )
 
-type endpointMock struct {
+type serviceStub struct {
 	buf bytes.Buffer
 }
 
-func (e *endpointMock) Read(p []byte) (n int, err error) {
+func (e *serviceStub) Read(p []byte) (n int, err error) {
 	return e.buf.Read(p)
 }
 
-func (e *endpointMock) Write(p []byte) (n int, err error) {
+func (e *serviceStub) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func (e *endpointMock) Close() error {
+func (e *serviceStub) Close() error {
 	return nil
 }
 
-func (e *endpointMock) LocalAddr() net.Addr {
+func (e *serviceStub) LocalAddr() net.Addr {
 	addrs, _ := net.InterfaceAddrs()
 	return addrs[0]
 }
 
-func (e *endpointMock) RemoteAddr() net.Addr {
+func (e *serviceStub) RemoteAddr() net.Addr {
 	addrs, _ := net.InterfaceAddrs()
 	return addrs[0]
 }
 
-func (e *endpointMock) SetDeadline(t time.Time) error {
+func (e *serviceStub) SetDeadline(t time.Time) error {
 	return nil
 }
 
-func (e *endpointMock) SetReadDeadline(t time.Time) error {
+func (e *serviceStub) SetReadDeadline(t time.Time) error {
 	return nil
 }
 
-func (e *endpointMock) SetWriteDeadline(t time.Time) error {
+func (e *serviceStub) SetWriteDeadline(t time.Time) error {
 	return nil
 }
 
 func TestGETOrgs(t *testing.T) {
 	// Start test server
-	e := &endpointMock{}
+	orgSvcStub := &serviceStub{}
 	s := newServer()
 	s.getOrgSvcConn = func() (net.Conn, error) {
-		return e, nil
+		return orgSvcStub, nil
 	}
 	ts := httptest.NewServer(s.rootHandler())
 	defer ts.Close()
@@ -71,7 +71,7 @@ func TestGETOrgs(t *testing.T) {
 	organizations.OrganizationAddName(b, namePosition)
 	orgPosition := organizations.OrganizationEnd(b)
 	b.Finish(orgPosition)
-	common.WriteWithSize(&e.buf, b.Bytes[b.Head():])
+	common.WriteWithSize(&orgSvcStub.buf, b.Bytes[b.Head():])
 
 	// Do test
 	res, err := http.Get(ts.URL + "/organizations")
