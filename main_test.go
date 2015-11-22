@@ -85,14 +85,18 @@ func TestGETOrgs(t *testing.T) {
 	if err != nil {
 		t.Fatal("Error reading response body: ", err)
 	}
-	var organizations map[string]string
+	var organizations []map[string]string
 	if err := json.Unmarshal(orgData, &organizations); err != nil {
 		t.Fatal("Error unmarshalling response data: ", err)
 	}
-	if len(organizations["name"]) == 0 {
+	if len(organizations) != 1 {
+		t.Fatalf("Expected JSON array with 1 element. Got: %v", organizations)
+	}
+	org := organizations[0]
+	if len(org["name"]) == 0 {
 		t.Fatalf("Expected JSON with a URL property. Got: %v", string(orgData))
 	}
-	if organizations["name"] != orgName {
-		t.Fatalf("Expected %v for name. Got %v", orgName, organizations["name"])
+	if org["name"] != orgName {
+		t.Fatalf("Expected %v for name. Got %v", orgName, org["name"])
 	}
 }

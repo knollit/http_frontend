@@ -135,10 +135,6 @@ func (s *server) rootHandler() http.Handler {
 			response = append(response, organizationFromFlatBuffer(orgMsg))
 		}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		if len(response) == 1 {
-			json.NewEncoder(w).Encode(response[0])
-			return
-		}
 		json.NewEncoder(w).Encode(response)
 		return
 	})
