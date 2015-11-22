@@ -56,10 +56,9 @@ func (e *endpointMock) SetWriteDeadline(t time.Time) error {
 func TestGETOrgs(t *testing.T) {
 	// Start test server
 	e := &endpointMock{}
-	s := &server{
-		getOrgSvcConn: func() (net.Conn, error) {
-			return e, nil
-		},
+	s := newServer()
+	s.getOrgSvcConn = func() (net.Conn, error) {
+		return e, nil
 	}
 	ts := httptest.NewServer(s.rootHandler())
 	defer ts.Close()

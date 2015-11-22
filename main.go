@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sync"
 
 	"github.com/google/flatbuffers/go"
 	"github.com/mikeraimondi/knollit/common"
@@ -33,23 +34,34 @@ func main() {
 		InsecureSkipVerify: true, //TODO dev only
 		ClientSessionCache: tls.NewLRUClientSessionCache(1000),
 	}
-	server := &server{
-		getOrgSvcConn: func() (net.Conn, error) {
-			return tls.Dial("tcp", fmt.Sprintf("%v:13800", os.Getenv("ORGSVC_PORT_13800_TCP_ADDR")), tlsConf)
-		},
+	s := newServer()
+	s.getOrgSvcConn = func() (net.Conn, error) {
+		// TODO what if multiple goroutines call this?
+		return tls.Dial("tcp", fmt.Sprintf("%v:13800", os.Getenv("ORGSVC_PORT_13800_TCP_ADDR")), tlsConf)
 	}
 
 	defer func() {
-		if err := server.Close(); err != nil {
+		if err := s.Close(); err != nil {
 			log.Println("Failed to close server: ", err)
 		}
 	}()
 
-	log.Fatal(server.run(":80"))
+	log.Fatal(s.run(":80"))
+}
+
+func newServer() *server {
+	return &server{
+		builderPool: sync.Pool{
+			New: func() interface{} {
+				return flatbuffers.NewBuilder(0)
+			},
+		},
+	}
 }
 
 type server struct {
 	getOrgSvcConn func() (net.Conn, error)
+	builderPool   sync.Pool
 }
 
 func (s *server) handler() http.Handler {
@@ -72,7 +84,9 @@ func (s *server) Close() error {
 
 func (s *server) rootHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		b := flatbuffers.NewBuilder(0)
+		b := s.builderPool.Get().(*flatbuffers.Builder)
+		defer s.builderPool.Put(b)
+
 		if r.Method == "GET" {
 			organizations.OrganizationStart(b)
 			organizations.OrganizationAddAction(b, organizations.ActionIndex)
