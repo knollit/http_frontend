@@ -9,7 +9,7 @@ type endpoint struct {
 	ID           string
 	Organization string
 	URL          string
-	Action       int8
+	action       int8
 	err          error
 }
 
@@ -25,7 +25,7 @@ func (e *endpoint) toFlatBufferBytes(b *flatbuffers.Builder) []byte {
 	endpoints.EndpointAddId(b, idPosition)
 	endpoints.EndpointAddOrganization(b, orgPosition)
 	endpoints.EndpointAddURL(b, urlPosition)
-	endpoints.EndpointAddAction(b, e.Action)
+	endpoints.EndpointAddAction(b, e.action)
 
 	endpointPosition := endpoints.EndpointEnd(b)
 	b.Finish(endpointPosition)

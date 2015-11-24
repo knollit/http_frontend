@@ -93,11 +93,6 @@ func (s *server) endpointHandler(w http.ResponseWriter, r *http.Request) {
 	b := s.builderPool.Get().(*flatbuffers.Builder)
 	defer s.builderPool.Put(b)
 
-	idPosition := b.CreateByteString([]byte(vars["endpointID"]))
-	endpoints.EndpointStart(b)
-	endpoints.EndpointAddId(b, idPosition)
-	endpointPosition := endpoints.EndpointEnd(b)
-	b.Finish(endpointPosition)
 	conn, err := s.getEndpointSvcConn()
 	if err != nil {
 		log.Printf("Request error %v", err)
@@ -105,7 +100,10 @@ func (s *server) endpointHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer conn.Close()
-	if _, err := common.WriteWithSize(conn, b.Bytes[b.Head():]); err != nil {
+	endpoint := &endpoint{
+		ID: vars["endpointID"],
+	}
+	if _, err := common.WriteWithSize(conn, endpoint.toFlatBufferBytes(b)); err != nil {
 		log.Printf("Request error %v", err)
 		http.Error(w, "Internal application error", http.StatusInternalServerError)
 		return
@@ -117,10 +115,9 @@ func (s *server) endpointHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	endpointMsg := endpoints.GetRootAsEndpoint(buf, 0)
-	endpointJSON := make(map[string]string)
-	endpointJSON["URL"] = string(endpointMsg.URL())
+	endpoint.URL = string(endpointMsg.URL())
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	json.NewEncoder(w).Encode(endpointJSON)
+	json.NewEncoder(w).Encode(endpoint)
 	return
 }
 
