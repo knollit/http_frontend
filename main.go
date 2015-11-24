@@ -13,7 +13,9 @@ import (
 	"sync"
 
 	"github.com/google/flatbuffers/go"
+	"github.com/gorilla/mux"
 	"github.com/mikeraimondi/knollit/common"
+	"github.com/mikeraimondi/knollit/http_frontend/endpoints"
 	"github.com/mikeraimondi/knollit/http_frontend/organizations"
 )
 
@@ -60,12 +62,16 @@ func newServer() *server {
 }
 
 type server struct {
-	getOrgSvcConn func() (net.Conn, error)
-	builderPool   sync.Pool
+	getOrgSvcConn      func() (net.Conn, error)
+	getEndpointSvcConn func() (net.Conn, error)
+	builderPool        sync.Pool
 }
 
 func (s *server) handler() http.Handler {
-	return s.rootHandler()
+	r := mux.NewRouter()
+	r.HandleFunc("/organizations", s.organizationsHandler)
+	r.HandleFunc("/organizations/{organizationID}/endpoints/{endpointID}", s.endpointHandler)
+	return r
 }
 
 func (s *server) run(addr string) error {
@@ -82,62 +88,96 @@ func (s *server) Close() error {
 	return nil
 }
 
-func (s *server) rootHandler() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		b := s.builderPool.Get().(*flatbuffers.Builder)
-		defer s.builderPool.Put(b)
+func (s *server) endpointHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	b := s.builderPool.Get().(*flatbuffers.Builder)
+	defer s.builderPool.Put(b)
 
-		if r.Method == "GET" {
-			organizations.OrganizationStart(b)
-			organizations.OrganizationAddAction(b, organizations.ActionIndex)
-		} else if r.Method == "POST" {
-			if err := r.ParseForm(); err != nil {
-				http.Error(w, "Bad request", http.StatusBadRequest)
-				return
-			}
-			namePosition := b.CreateByteString([]byte(r.Form.Get("name")))
-			organizations.OrganizationStart(b)
-			organizations.OrganizationAddName(b, namePosition)
-		} else {
-			w.Header().Set("Allow", "GET, POST")
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		orgPosition := organizations.OrganizationEnd(b)
-		b.Finish(orgPosition)
-
-		conn, err := s.getOrgSvcConn()
-		if err != nil {
-			log.Printf("Request error %v", err)
-			http.Error(w, "Internal application error", http.StatusInternalServerError)
-			return
-		}
-		defer conn.Close()
-		if _, err := common.WriteWithSize(conn, b.Bytes[b.Head():]); err != nil {
-			log.Printf("Request error %v", err)
-			http.Error(w, "Internal application error", http.StatusInternalServerError)
-			return
-		}
-		var response []organization
-		for {
-			buf, _, err := common.ReadWithSize(conn)
-			if err == io.EOF {
-				break
-			} else if err != nil {
-				log.Printf("Response error %v", err)
-				http.Error(w, "Internal application error", http.StatusInternalServerError)
-				return
-			}
-			orgMsg := organizations.GetRootAsOrganization(buf, 0)
-			if len(orgMsg.Error()) > 0 {
-				w.WriteHeader(http.StatusBadRequest)
-			}
-			response = append(response, organizationFromFlatBuffer(orgMsg))
-		}
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		json.NewEncoder(w).Encode(response)
+	idPosition := b.CreateByteString([]byte(vars["endpointID"]))
+	endpoints.EndpointStart(b)
+	endpoints.EndpointAddId(b, idPosition)
+	endpointPosition := endpoints.EndpointEnd(b)
+	b.Finish(endpointPosition)
+	conn, err := s.getEndpointSvcConn()
+	if err != nil {
+		log.Printf("Request error %v", err)
+		http.Error(w, "Internal application error", http.StatusInternalServerError)
 		return
-	})
+	}
+	defer conn.Close()
+	if _, err := common.WriteWithSize(conn, b.Bytes[b.Head():]); err != nil {
+		log.Printf("Request error %v", err)
+		http.Error(w, "Internal application error", http.StatusInternalServerError)
+		return
+	}
+	buf, _, err := common.ReadWithSize(conn)
+	if err != nil {
+		log.Printf("Request error %v", err)
+		http.Error(w, "Internal application error", http.StatusInternalServerError)
+		return
+	}
+	endpointMsg := endpoints.GetRootAsEndpoint(buf, 0)
+	endpointJSON := make(map[string]string)
+	endpointJSON["URL"] = string(endpointMsg.URL())
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	json.NewEncoder(w).Encode(endpointJSON)
+	return
+}
+
+func (s *server) organizationsHandler(w http.ResponseWriter, r *http.Request) {
+	b := s.builderPool.Get().(*flatbuffers.Builder)
+	defer s.builderPool.Put(b)
+
+	if r.Method == "GET" {
+		organizations.OrganizationStart(b)
+		organizations.OrganizationAddAction(b, organizations.ActionIndex)
+	} else if r.Method == "POST" {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Bad request", http.StatusBadRequest)
+			return
+		}
+		namePosition := b.CreateByteString([]byte(r.Form.Get("name")))
+		organizations.OrganizationStart(b)
+		organizations.OrganizationAddName(b, namePosition)
+	} else {
+		w.Header().Set("Allow", "GET, POST")
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	orgPosition := organizations.OrganizationEnd(b)
+	b.Finish(orgPosition)
+
+	conn, err := s.getOrgSvcConn()
+	if err != nil {
+		log.Printf("Request error %v", err)
+		http.Error(w, "Internal application error", http.StatusInternalServerError)
+		return
+	}
+	defer conn.Close()
+	if _, err := common.WriteWithSize(conn, b.Bytes[b.Head():]); err != nil {
+		log.Printf("Request error %v", err)
+		http.Error(w, "Internal application error", http.StatusInternalServerError)
+		return
+	}
+	var response []organization
+	for {
+		buf, _, err := common.ReadWithSize(conn)
+		if err == io.EOF {
+			break
+		} else if err != nil {
+			log.Printf("Response error %v", err)
+			http.Error(w, "Internal application error", http.StatusInternalServerError)
+			return
+		}
+		orgMsg := organizations.GetRootAsOrganization(buf, 0)
+		if len(orgMsg.Error()) > 0 {
+			w.WriteHeader(http.StatusBadRequest)
+		}
+		response = append(response, organizationFromFlatBuffer(orgMsg))
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	json.NewEncoder(w).Encode(response)
+	return
 }
 
 type organization struct {

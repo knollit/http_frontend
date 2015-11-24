@@ -1,0 +1,14 @@
+namespace endpoints;
+
+enum Action : byte { New, Index, Read }
+
+table Endpoint {
+  id:string;
+  organization:string;
+  URL:string;
+
+  action:Action;
+  error:string;
+}
+
+root_type Endpoint;
