@@ -70,7 +70,7 @@ type server struct {
 func (s *server) handler() http.Handler {
 	r := mux.NewRouter()
 	r.HandleFunc("/organizations", s.organizationsHandler)
-	r.HandleFunc("/organizations/{organizationID}/endpoints/{endpointID}", s.endpointHandler)
+	r.HandleFunc("/organizations/{organizationName}/endpoints/{endpointID}", s.endpointHandler)
 	return r
 }
 
@@ -93,22 +93,48 @@ func (s *server) endpointHandler(w http.ResponseWriter, r *http.Request) {
 	b := s.builderPool.Get().(*flatbuffers.Builder)
 	defer s.builderPool.Put(b)
 
-	conn, err := s.getEndpointSvcConn()
+	orgConn, err := s.getOrgSvcConn()
 	if err != nil {
 		log.Printf("Request error %v", err)
 		http.Error(w, "Internal application error", http.StatusInternalServerError)
 		return
 	}
-	defer conn.Close()
-	endpoint := &endpoint{
-		ID: vars["endpointID"],
+	defer orgConn.Close()
+	organization := &organization{
+		Name:   vars["organizationName"],
+		action: organizations.ActionRead,
 	}
-	if _, err := common.WriteWithSize(conn, endpoint.toFlatBufferBytes(b)); err != nil {
+	if _, err := common.WriteWithSize(orgConn, organization.toFlatBufferBytes(b)); err != nil {
 		log.Printf("Request error %v", err)
 		http.Error(w, "Internal application error", http.StatusInternalServerError)
 		return
 	}
-	buf, _, err := common.ReadWithSize(conn)
+	buf, _, err := common.ReadWithSize(orgConn)
+	if err != nil {
+		log.Printf("Request error %v", err)
+		http.Error(w, "Internal application error", http.StatusInternalServerError)
+		return
+	}
+	// TODO read org
+	// orgMsg := organizations.GetRootAsOrganization(buf, 0)
+
+	endpointConn, err := s.getEndpointSvcConn()
+	if err != nil {
+		log.Printf("Request error %v", err)
+		http.Error(w, "Internal application error", http.StatusInternalServerError)
+		return
+	}
+	defer endpointConn.Close()
+	endpoint := &endpoint{
+		ID: vars["endpointID"],
+		// TODO action
+	}
+	if _, err := common.WriteWithSize(endpointConn, endpoint.toFlatBufferBytes(b)); err != nil {
+		log.Printf("Request error %v", err)
+		http.Error(w, "Internal application error", http.StatusInternalServerError)
+		return
+	}
+	buf, _, err = common.ReadWithSize(endpointConn)
 	if err != nil {
 		log.Printf("Request error %v", err)
 		http.Error(w, "Internal application error", http.StatusInternalServerError)
@@ -175,16 +201,4 @@ func (s *server) organizationsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	json.NewEncoder(w).Encode(response)
 	return
-}
-
-type organization struct {
-	Name  string `json:"name"`
-	Error string
-}
-
-func organizationFromFlatBuffer(org *organizations.Organization) organization {
-	return organization{
-		Name:  string(org.Name()),
-		Error: string(org.Error()),
-	}
 }

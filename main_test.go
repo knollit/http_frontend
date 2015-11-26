@@ -57,6 +57,7 @@ func (e *serviceStub) SetWriteDeadline(t time.Time) error {
 }
 
 func TestGETOrgs(t *testing.T) {
+	t.Parallel()
 	// Start test server
 	orgSvcStub := &serviceStub{}
 	s := newServer()
@@ -105,14 +106,27 @@ func TestGETOrgs(t *testing.T) {
 }
 
 func TestGETEndpoint(t *testing.T) {
+	t.Parallel()
+
 	// Start test server
 	endpointSvc := &serviceStub{}
+	organizationSvc := &serviceStub{}
 	s := newServer()
 	s.getEndpointSvcConn = func() (net.Conn, error) {
 		return endpointSvc, nil
 	}
+	s.getOrgSvcConn = func() (net.Conn, error) {
+		return organizationSvc, nil
+	}
 	ts := httptest.NewServer(s.handler())
 	defer ts.Close()
+
+	// Prepare response from organization service
+	org := organization{
+		Name: "testOrg",
+	}
+	b := flatbuffers.NewBuilder(0)
+	common.WriteWithSize(&organizationSvc.buf, org.toFlatBufferBytes(b))
 
 	// Prepare response from endpoint service
 	endpoint := endpoint{
@@ -120,18 +134,35 @@ func TestGETEndpoint(t *testing.T) {
 		Organization: "testOrg",
 		URL:          "http://test.com",
 	}
-	b := flatbuffers.NewBuilder(0)
+	b.Reset()
 	common.WriteWithSize(&endpointSvc.buf, endpoint.toFlatBufferBytes(b))
 
-	// Perform test
+	// Make test request
 	res, err := http.Get(fmt.Sprintf("%v/organizations/%v/endpoints/%v", ts.URL, endpoint.Organization, endpoint.ID))
 	if err != nil {
 		t.Fatal("GET error: ", err)
 	}
+
+	// Test response status
 	if expectedStatus := 200; res.StatusCode != expectedStatus {
 		t.Fatalf("Expected %v status, got %v", expectedStatus, res.StatusCode)
 	}
-	buf, _, err := common.ReadWithSize(&endpointSvc.writeBuf)
+
+	// Test organization service is contacted
+	buf, _, err := common.ReadWithSize(&organizationSvc.writeBuf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	organizationMsg := organizations.GetRootAsOrganization(buf, 0)
+	if name := string(organizationMsg.Name()); name != org.Name {
+		t.Fatalf("Expected %v in organization request, got %v", org.Name, name)
+	}
+	if organizationMsg.Action() != organizations.ActionRead {
+		t.Fatalf("Expected %v for action in request, got %v", organizations.ActionRead, organizationMsg.Action())
+	}
+
+	// Test endpoint service is contacted
+	buf, _, err = common.ReadWithSize(&endpointSvc.writeBuf)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,6 +170,8 @@ func TestGETEndpoint(t *testing.T) {
 	if id := string(endpointMsg.Id()); id != endpoint.ID {
 		t.Fatalf("Expected %v in endpoint request, got %v", endpoint.ID, id)
 	}
+
+	// Test response
 	endpointData, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		t.Fatal("Error reading response body: ", err)
