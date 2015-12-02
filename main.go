@@ -14,9 +14,9 @@ import (
 
 	"github.com/google/flatbuffers/go"
 	"github.com/gorilla/mux"
-	"github.com/mikeraimondi/knollit/common"
 	"github.com/mikeraimondi/knollit/http_frontend/endpoints"
 	"github.com/mikeraimondi/knollit/http_frontend/organizations"
+	"github.com/mikeraimondi/prefixedio"
 )
 
 var (
@@ -58,6 +58,11 @@ func newServer() *server {
 				return flatbuffers.NewBuilder(0)
 			},
 		},
+		prefixedBufPool: sync.Pool{
+			New: func() interface{} {
+				return &prefixedio.Buffer{}
+			},
+		},
 	}
 }
 
@@ -65,6 +70,7 @@ type server struct {
 	getOrgSvcConn      func() (net.Conn, error)
 	getEndpointSvcConn func() (net.Conn, error)
 	builderPool        sync.Pool
+	prefixedBufPool    sync.Pool
 }
 
 func (s *server) handler() http.Handler {
@@ -104,12 +110,15 @@ func (s *server) endpointHandler(w http.ResponseWriter, r *http.Request) {
 		Name:   vars["organizationName"],
 		action: organizations.ActionRead,
 	}
-	if _, err := common.WriteWithSize(orgConn, organization.toFlatBufferBytes(b)); err != nil {
+	if _, err := prefixedio.WriteBytes(orgConn, organization.toFlatBufferBytes(b)); err != nil {
 		log.Printf("Request error %v", err)
 		http.Error(w, "Internal application error", http.StatusInternalServerError)
 		return
 	}
-	buf, _, err := common.ReadWithSize(orgConn)
+
+	buf := s.prefixedBufPool.Get().(*prefixedio.Buffer)
+	defer s.prefixedBufPool.Put(b)
+	_, err = buf.ReadFrom(orgConn)
 	if err != nil {
 		log.Printf("Request error %v", err)
 		http.Error(w, "Internal application error", http.StatusInternalServerError)
@@ -129,18 +138,18 @@ func (s *server) endpointHandler(w http.ResponseWriter, r *http.Request) {
 		ID: vars["endpointID"],
 		// TODO action
 	}
-	if _, err := common.WriteWithSize(endpointConn, endpoint.toFlatBufferBytes(b)); err != nil {
+	if _, err := prefixedio.WriteBytes(endpointConn, endpoint.toFlatBufferBytes(b)); err != nil {
 		log.Printf("Request error %v", err)
 		http.Error(w, "Internal application error", http.StatusInternalServerError)
 		return
 	}
-	buf, _, err = common.ReadWithSize(endpointConn)
+	_, err = buf.ReadFrom(endpointConn)
 	if err != nil {
 		log.Printf("Request error %v", err)
 		http.Error(w, "Internal application error", http.StatusInternalServerError)
 		return
 	}
-	endpointMsg := endpoints.GetRootAsEndpoint(buf, 0)
+	endpointMsg := endpoints.GetRootAsEndpoint(buf.Bytes(), 0)
 	endpoint.URL = string(endpointMsg.URL())
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	json.NewEncoder(w).Encode(endpoint)
@@ -177,14 +186,16 @@ func (s *server) organizationsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer conn.Close()
-	if _, err := common.WriteWithSize(conn, b.Bytes[b.Head():]); err != nil {
+	if _, err := prefixedio.WriteBytes(conn, b.Bytes[b.Head():]); err != nil {
 		log.Printf("Request error %v", err)
 		http.Error(w, "Internal application error", http.StatusInternalServerError)
 		return
 	}
 	var response []organization
+	buf := s.prefixedBufPool.Get().(*prefixedio.Buffer)
+	defer s.prefixedBufPool.Put(b)
 	for {
-		buf, _, err := common.ReadWithSize(conn)
+		_, err = buf.ReadFrom(conn)
 		if err == io.EOF {
 			break
 		} else if err != nil {
@@ -192,7 +203,7 @@ func (s *server) organizationsHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Internal application error", http.StatusInternalServerError)
 			return
 		}
-		orgMsg := organizations.GetRootAsOrganization(buf, 0)
+		orgMsg := organizations.GetRootAsOrganization(buf.Bytes(), 0)
 		if len(orgMsg.Error()) > 0 {
 			w.WriteHeader(http.StatusBadRequest)
 		}
