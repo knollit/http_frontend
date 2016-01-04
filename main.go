@@ -14,8 +14,8 @@ import (
 
 	"github.com/google/flatbuffers/go"
 	"github.com/gorilla/mux"
-	"github.com/mikeraimondi/knollit/http_frontend/endpoints"
-	"github.com/mikeraimondi/knollit/http_frontend/organizations"
+	"github.com/knollit/http_frontend/endpoints"
+	"github.com/knollit/http_frontend/organizations"
 	"github.com/mikeraimondi/prefixedio"
 )
 

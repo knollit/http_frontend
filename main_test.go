@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/google/flatbuffers/go"
-	"github.com/mikeraimondi/knollit/common"
-	"github.com/mikeraimondi/knollit/endpoints/endpoints"
-	"github.com/mikeraimondi/knollit/http_frontend/organizations"
+	"github.com/knollit/common"
+	"github.com/knollit/endpoints/endpoints"
+	"github.com/knollit/http_frontend/organizations"
 )
 
 type serviceStub struct {

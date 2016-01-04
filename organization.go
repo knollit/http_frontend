@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/google/flatbuffers/go"
-	"github.com/mikeraimondi/knollit/http_frontend/organizations"
+	"github.com/knollit/http_frontend/organizations"
 )
 
 type organization struct {
