@@ -1,6 +1,9 @@
 machine:
   services:
     - docker
+  post:
+    - git clone https://github.com/google/flatbuffers.git
+    - cd flatbuffers/ && cmake -G "Unix Makefiles" && make && sudo make install
 dependencies:
   pre:
     - ./build.sh
@@ -8,7 +11,6 @@ deployment:
   production:
     branch: master
     commands:
-      - ./build.sh
       - docker tag knollit/http_frontend:latest knollit/http_frontend:$CIRCLE_SHA1
       - docker login -e $DOCKER_EMAIL -u $DOCKER_USER -p $DOCKER_PASS
       - docker push knollit/http_frontend:$CIRCLE_SHA1
