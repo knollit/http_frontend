@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/google/flatbuffers/go"
-	"github.com/knollit/common"
-	"github.com/knollit/endpoints/endpoints"
+	"github.com/knollit/http_frontend/endpoints"
 	"github.com/knollit/http_frontend/organizations"
+	"github.com/mikeraimondi/prefixedio"
 )
 
 type serviceStub struct {
@@ -75,7 +75,7 @@ func TestGETOrgs(t *testing.T) {
 	organizations.OrganizationAddName(b, namePosition)
 	orgPosition := organizations.OrganizationEnd(b)
 	b.Finish(orgPosition)
-	common.WriteWithSize(&orgSvcStub.buf, b.Bytes[b.Head():])
+	prefixedio.WriteBytes(&orgSvcStub.buf, b.Bytes[b.Head():])
 
 	// Perform test
 	res, err := http.Get(ts.URL + "/organizations")
@@ -126,7 +126,7 @@ func TestGETEndpoint(t *testing.T) {
 		Name: "testOrg",
 	}
 	b := flatbuffers.NewBuilder(0)
-	common.WriteWithSize(&organizationSvc.buf, org.toFlatBufferBytes(b))
+	prefixedio.WriteBytes(&organizationSvc.buf, org.toFlatBufferBytes(b))
 
 	// Prepare response from endpoint service
 	endpoint := endpoint{
@@ -135,7 +135,7 @@ func TestGETEndpoint(t *testing.T) {
 		URL:          "http://test.com",
 	}
 	b.Reset()
-	common.WriteWithSize(&endpointSvc.buf, endpoint.toFlatBufferBytes(b))
+	prefixedio.WriteBytes(&endpointSvc.buf, endpoint.toFlatBufferBytes(b))
 
 	// Make test request
 	res, err := http.Get(fmt.Sprintf("%v/organizations/%v/endpoints/%v", ts.URL, endpoint.Organization, endpoint.ID))
@@ -149,11 +149,11 @@ func TestGETEndpoint(t *testing.T) {
 	}
 
 	// Test organization service is contacted
-	buf, _, err := common.ReadWithSize(&organizationSvc.writeBuf)
-	if err != nil {
+	var buf prefixedio.Buffer
+	if _, err = buf.ReadFrom(&organizationSvc.writeBuf); err != nil {
 		t.Fatal(err)
 	}
-	organizationMsg := organizations.GetRootAsOrganization(buf, 0)
+	organizationMsg := organizations.GetRootAsOrganization(buf.Bytes(), 0)
 	if name := string(organizationMsg.Name()); name != org.Name {
 		t.Fatalf("Expected %v in organization request, got %v", org.Name, name)
 	}
@@ -162,11 +162,10 @@ func TestGETEndpoint(t *testing.T) {
 	}
 
 	// Test endpoint service is contacted
-	buf, _, err = common.ReadWithSize(&endpointSvc.writeBuf)
-	if err != nil {
+	if _, err = buf.ReadFrom(&endpointSvc.writeBuf); err != nil {
 		t.Fatal(err)
 	}
-	endpointMsg := endpoints.GetRootAsEndpoint(buf, 0)
+	endpointMsg := endpoints.GetRootAsEndpoint(buf.Bytes(), 0)
 	if id := string(endpointMsg.Id()); id != endpoint.ID {
 		t.Fatalf("Expected %v in endpoint request, got %v", endpoint.ID, id)
 	}
