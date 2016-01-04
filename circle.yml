@@ -1,0 +1,12 @@
+machine:
+  services:
+    - docker
+deployment:
+  production:
+    branch: master
+    commands:
+      - ./build.sh
+      - docker tag knollit/http_frontend:latest knollit/http_frontend:$CIRCLE_SHA1
+      - docker login -e $DOCKER_EMAIL -u $DOCKER_USER -p $DOCKER_PASS
+      - docker push knollit/http_frontend:$CIRCLE_SHA1
+      - docker push knollit/http_frontend:latest

@@ -1,8 +1,8 @@
 FROM centurylink/ca-certs
 
-COPY json_api /
+COPY http_frontend /
 COPY certs /
 
 EXPOSE 80
 
-ENTRYPOINT ["/json_api"]
+ENTRYPOINT ["/http_frontend"]
