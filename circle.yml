@@ -1,6 +1,9 @@
 machine:
   services:
     - docker
+dependencies:
+  pre:
+    - ./build.sh
 deployment:
   production:
     branch: master
