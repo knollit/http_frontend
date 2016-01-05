@@ -6,12 +6,8 @@ dependencies:
     - ~/flatbuffers
   pre:
     - if [[ ! -e ~/flatbuffers/flatc ]]; then cd ~ && git clone https://github.com/google/flatbuffers.git && cd flatbuffers/ && cmake -G "Unix Makefiles" && make; fi
-    - ~/flatbuffers/flatc -g *.fbs
-    - mkdir -p /home/ubuntu/.go_workspace/src/github.com/knollit/http_frontend
-    - rm -rf /home/ubuntu/.go_workspace/src/github.com/knollit/http_frontend/endpoints
-    - rm -rf /home/ubuntu/.go_workspace/src/github.com/knollit/http_frontend/organizations
-    - mv endpoints/ /home/ubuntu/.go_workspace/src/github.com/knollit/http_frontend
-    - mv organizations/ /home/ubuntu/.go_workspace/src/github.com/knollit/http_frontend
+    - cp -f ~/flatbuffers/flatc ~/bin
+    - flatc -g -o ~/.go_workspace/src/github.com/knollit/$CIRCLE_PROJECT_REPONAME/ *.fbs
 deployment:
   production:
     branch: master
