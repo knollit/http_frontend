@@ -7,6 +7,6 @@ else
   flatc -g *.fbs
 fi
 go get
-CGO_ENABLED=0 GOOS=linux go build -a --installsuffix cgo --ldflags="-s" -o http_frontend .
-docker build -t knollit/http_frontend:latest .
-rm http_frontend
+CGO_ENABLED=0 GOOS=linux go build -a --installsuffix cgo --ldflags="-s" -o $CIRCLE_PROJECT_REPONAME .
+docker build -t knollit/$CIRCLE_PROJECT_REPONAME:latest .
+rm $CIRCLE_PROJECT_REPONAME
