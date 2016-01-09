@@ -41,6 +41,10 @@ func main() {
 		// TODO what if multiple goroutines call this?
 		return tls.Dial("tcp", fmt.Sprintf("%v:13800", os.Getenv("ORGSVC_PORT_13800_TCP_ADDR")), tlsConf)
 	}
+	s.getEndpointSvcConn = func() (net.Conn, error) {
+		// TODO what if multiple goroutines call this?
+		return tls.Dial("tcp", fmt.Sprintf("%v:13800", os.Getenv("ENDPOINTSVC_PORT_13800_TCP_ADDR")), tlsConf)
+	}
 
 	defer func() {
 		if err := s.Close(); err != nil {
