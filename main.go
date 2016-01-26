@@ -10,7 +10,9 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 
 	"github.com/google/flatbuffers/go"
 	"github.com/gorilla/mux"
@@ -52,7 +54,20 @@ func main() {
 		}
 	}()
 
-	log.Fatal(s.run(":80"))
+	errChan := make(chan error)
+	exitChan := make(chan os.Signal)
+	signal.Notify(exitChan, syscall.SIGINT, syscall.SIGTERM)
+
+	go s.run(":80", errChan)
+
+	select {
+	case err = <-errChan:
+		log.Println("Error starting listener: ", err)
+		return
+	case exit := <-exitChan:
+		log.Println("Exiting: ", exit)
+		return
+	}
 }
 
 func newServer() *server {
@@ -84,14 +99,14 @@ func (s *server) handler() http.Handler {
 	return r
 }
 
-func (s *server) run(addr string) error {
+func (s *server) run(addr string, errChan chan error) {
 	httpServer := &http.Server{
 		Addr:    addr,
 		Handler: s.handler(),
 	}
 
 	log.Printf("Listening for requests on %s...\n", addr)
-	return httpServer.ListenAndServe()
+	errChan <- httpServer.ListenAndServe()
 }
 
 func (s *server) Close() error {
@@ -121,7 +136,7 @@ func (s *server) endpointHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	buf := s.prefixedBufPool.Get().(*prefixedio.Buffer)
-	defer s.prefixedBufPool.Put(b)
+	defer s.prefixedBufPool.Put(buf)
 	_, err = buf.ReadFrom(orgConn)
 	if err != nil {
 		log.Printf("Request error %v", err)
@@ -197,7 +212,7 @@ func (s *server) organizationsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	var response []organization
 	buf := s.prefixedBufPool.Get().(*prefixedio.Buffer)
-	defer s.prefixedBufPool.Put(b)
+	defer s.prefixedBufPool.Put(buf)
 	for {
 		_, err = buf.ReadFrom(conn)
 		if err == io.EOF {

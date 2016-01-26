@@ -1,0 +1,53 @@
+Certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number: 14 (0xe)
+        Signature Algorithm: ecdsa-with-SHA1
+        Issuer: C=US, CN=dev.knollit.com, O=knollit
+        Validity
+            Not Before: Jan 25 00:40:31 2016 GMT
+            Not After : Jan 22 00:40:31 2026 GMT
+        Subject: O=knollit, CN=client.knollit.com
+        Subject Public Key Info:
+            Public Key Algorithm: id-ecPublicKey
+            EC Public Key:
+                pub: 
+                    04:01:7e:fe:63:88:64:49:44:41:5f:e7:c1:89:60:
+                    a1:8b:6a:2c:aa:56:8c:1e:bc:e3:0c:4a:43:b2:dd:
+                    7b:fc:6e:d3:f9:e9:73:30:e7:60:e6:11:84:d9:8a:
+                    eb:ae:f8:80:85:18:d7:b0:57:c8:fe:c3:8c:15:b0:
+                    6f:38:6e:ab:97:a4:08:01:e6:2a:b7:d4:80:e0:e9:
+                    bb:80:4d:b3:45:c1:a1:8a:59:ff:67:81:cf:d0:b5:
+                    2d:4f:2b:04:8d:ed:7c:fc:aa:2e:9d:0a:9d:6c:82:
+                    fd:94:a9:cd:26:d8:ee:57:49:69:e5:4a:66:b3:d9:
+                    b8:d6:ff:25:00:89:3a:91:bf:6c:27:07:58
+                ASN1 OID: secp521r1
+        X509v3 extensions:
+            X509v3 Basic Constraints: 
+                CA:FALSE
+            X509v3 Extended Key Usage: 
+                TLS Web Client Authentication
+            X509v3 Key Usage: 
+                Digital Signature, Key Encipherment
+    Signature Algorithm: ecdsa-with-SHA1
+        30:81:88:02:42:01:5f:bb:47:0e:9a:42:9d:2d:8a:63:08:93:
+        f2:70:64:05:1a:6f:e9:84:d8:b9:9d:28:a5:94:71:06:5b:12:
+        b0:b1:50:62:9b:b9:0c:ab:9b:68:58:fe:ad:89:b2:86:0b:15:
+        f8:f0:92:9b:91:7c:5e:16:78:03:63:62:04:17:dd:f6:db:02:
+        42:00:ec:48:b6:3b:8c:2e:8d:49:9a:a8:c4:c8:c2:0c:1f:ba:
+        3e:87:d6:b3:d6:39:e0:91:88:ef:95:f6:06:be:93:03:35:23:
+        a4:ed:9b:b7:fb:a6:72:99:55:80:e5:0b:bd:d6:21:ad:9b:d9:
+        54:0f:a4:2c:c6:41:9c:60:19:c9:56:34:d4
+-----BEGIN CERTIFICATE-----
+MIICDDCCAW6gAwIBAgIBDjAJBgcqhkjOPQQBMDkxCzAJBgNVBAYTAlVTMRgwFgYD
+VQQDDA9kZXYua25vbGxpdC5jb20xEDAOBgNVBAoMB2tub2xsaXQwHhcNMTYwMTI1
+MDA0MDMxWhcNMjYwMTIyMDA0MDMxWjAvMRAwDgYDVQQKDAdrbm9sbGl0MRswGQYD
+VQQDDBJjbGllbnQua25vbGxpdC5jb20wgZswEAYHKoZIzj0CAQYFK4EEACMDgYYA
+BAF+/mOIZElEQV/nwYlgoYtqLKpWjB684wxKQ7Lde/xu0/npczDnYOYRhNmK6674
+gIUY17BXyP7DjBWwbzhuq5ekCAHmKrfUgODpu4BNs0XBoYpZ/2eBz9C1LU8rBI3t
+fPyqLp0KnWyC/ZSpzSbY7ldJaeVKZrPZuNb/JQCJOpG/bCcHWKMvMC0wCQYDVR0T
+BAIwADATBgNVHSUEDDAKBggrBgEFBQcDAjALBgNVHQ8EBAMCBaAwCQYHKoZIzj0E
+AQOBjAAwgYgCQgFfu0cOmkKdLYpjCJPycGQFGm/phNi5nSillHEGWxKwsVBim7kM
+q5toWP6tibKGCxX48JKbkXxeFngDY2IEF9322wJCAOxItjuMLo1JmqjEyMIMH7o+
+h9az1jngkYjvlfYGvpMDNSOk7Zu3+6ZymVWA5Qu91iGtm9lUD6QsxkGcYBnJVjTU
+-----END CERTIFICATE-----
