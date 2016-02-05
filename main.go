@@ -210,7 +210,7 @@ func (s *server) organizationsHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal application error", http.StatusInternalServerError)
 		return
 	}
-	var response []organization
+	response := []organization{}
 	buf := s.prefixedBufPool.Get().(*prefixedio.Buffer)
 	defer s.prefixedBufPool.Put(buf)
 	for {
@@ -230,5 +230,4 @@ func (s *server) organizationsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	json.NewEncoder(w).Encode(response)
-	return
 }

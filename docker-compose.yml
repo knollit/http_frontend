@@ -6,9 +6,9 @@ web:
     TLS_CERT_PATH: /dev-client.crt
     TLS_KEY_PATH: /dev-client.key
   links:
-    - organization_svc:orgsvc
-    - endpoint_svc:endpointsvc
-organization_svc:
+    - organizations:orgsvc
+    - endpoints:endpointsvc
+organizations:
   image: knollit/organization_svc:latest
   environment:
     POSTGRES_PASSWORD: mysecretpassword
@@ -16,12 +16,12 @@ organization_svc:
     TLS_CERT_PATH: /dev-server.crt
     TLS_KEY_PATH: /dev-server.key
   links:
-    - organization_svc_rdbms:postgres
-organization_svc_rdbms:
+    - organizations_db:postgres
+organizations_db:
   image: knollit/organization_svc_rdbms:latest
   environment:
     POSTGRES_PASSWORD: mysecretpassword
-endpoint_svc:
+endpoints:
   image: knollit/endpoint_svc:latest
   environment:
     POSTGRES_PASSWORD: mysecretpassword
@@ -29,8 +29,8 @@ endpoint_svc:
     TLS_CERT_PATH: /dev-server.crt
     TLS_KEY_PATH: /dev-server.key
   links:
-    - endpoint_svc_rdbms:postgres
-endpoint_svc_rdbms:
+    - endpoints_db:postgres
+endpoints_db:
   image: knollit/endpoint_svc_rdbms:latest
   environment:
     POSTGRES_PASSWORD: mysecretpassword
