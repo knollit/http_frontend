@@ -96,6 +96,7 @@ func (s *server) handler() http.Handler {
 	r := mux.NewRouter()
 	r.HandleFunc("/organizations", s.organizationsHandler)
 	r.HandleFunc("/organizations/{organizationName}/endpoints/{endpointID}", s.endpointHandler)
+	r.HandleFunc("/health_check", s.healthCheckHandler)
 	return r
 }
 
@@ -230,4 +231,20 @@ func (s *server) organizationsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	json.NewEncoder(w).Encode(response)
+}
+
+func (s *server) healthCheckHandler(w http.ResponseWriter, r *http.Request) {
+	conn, err := s.getOrgSvcConn()
+	if err != nil {
+		http.Error(w, "Organizations unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	conn.Close()
+	conn, err = s.getEndpointSvcConn()
+	if err != nil {
+		http.Error(w, "Endpoints unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	conn.Close()
+	w.WriteHeader(http.StatusNoContent)
 }

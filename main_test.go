@@ -235,7 +235,23 @@ func TestOrganizationIndexE2E(t *testing.T) {
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(time.Duration(5) * time.Second) //TODO detect application is fully booted instead of waiting a hardcoded number of seconds
+
+	// Poll until server is healthy
+	// TODO extract
+	attempts := 0
+	startTS := time.Now()
+	for {
+		if waited := time.Second * 30; time.Now().Sub(startTS) > waited {
+			t.Fatalf("Timed out waiting for server to start. Waited %v.", waited)
+		}
+		res, err := http.Head(fmt.Sprintf("http://%s%v/health_check", ip, port))
+		if err == nil && res.StatusCode == 204 {
+			break
+		} else {
+			attempts++
+			time.Sleep(time.Millisecond * 250)
+		}
+	}
 
 	// TEST
 	orgURL := fmt.Sprintf("http://%s%v/organizations", ip, port)
