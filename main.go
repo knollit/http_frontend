@@ -234,6 +234,7 @@ func (s *server) organizationsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) healthCheckHandler(w http.ResponseWriter, r *http.Request) {
+	// TODO include DB check
 	conn, err := s.getOrgSvcConn()
 	if err != nil {
 		http.Error(w, "Organizations unavailable", http.StatusServiceUnavailable)

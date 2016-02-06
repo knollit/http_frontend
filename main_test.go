@@ -210,12 +210,15 @@ func TestOrganizationIndexE2E(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		ip = append(ip, bytes.TrimSpace(byteIP)...)
+		ip = bytes.TrimSpace(byteIP)
 	} else { // no active docker machine, assume Docker is running natively
-		ip = append(ip, []byte("127.0.0.1")...)
+		ip = []byte("127.0.0.1")
 	}
 
 	// TODO extract and run only once over all end-to-end tests
+	if err := exec.Command("./build.sh").Run(); err != nil {
+		t.Fatal("Build failed: ", err)
+	}
 	if err := exec.Command("docker-compose", "up", "-d").Run(); err != nil {
 		t.Fatal("Docker compose failed to start: ", err)
 	}
