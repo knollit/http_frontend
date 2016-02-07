@@ -13,19 +13,6 @@ import (
 	"time"
 )
 
-// TODO also defined in Coelacanth. DRY up?
-
-type logWriter struct {
-	*testing.T
-}
-
-func (l *logWriter) Write(p []byte) (n int, err error) {
-	for _, line := range bytes.Split(p, []byte("\n")) {
-		l.Logf("%s", bytes.TrimSpace(line))
-	}
-	return len(p), nil
-}
-
 func TestOrganizationIndexE2E(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping end-to-end test in short mode.")
@@ -61,10 +48,11 @@ func TestOrganizationIndexE2E(t *testing.T) {
 		}
 	}()
 	// TODO log to file
-	logger := &logWriter{t}
-	cmd := exec.Command("docker-compose", "logs")
-	cmd.Stdout = logger
-	cmd.Stderr = logger
+	// logger := &logWriter{t}
+	file, _ := os.Create("test.log")
+	cmd := exec.Command("docker-compose", "logs", "--no-color")
+	cmd.Stdout = file
+	cmd.Stderr = file
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
