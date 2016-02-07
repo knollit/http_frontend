@@ -13,12 +13,12 @@ import (
 	"time"
 )
 
-func TestOrganizationIndexE2E(t *testing.T) {
+const port = ":6080"
+
+func e2e(t *testing.T, testFunc func([]byte)) {
 	if testing.Short() {
 		t.Skip("skipping end-to-end test in short mode.")
 	}
-	// TODO extract
-	const port = ":6080"
 	var ip []byte
 	dkm, err := exec.Command("docker-machine", "active").Output()
 	if err == nil { // active Docker Machine detected, use it
@@ -31,7 +31,7 @@ func TestOrganizationIndexE2E(t *testing.T) {
 		ip = []byte("127.0.0.1")
 	}
 
-	// TODO extract and run only once over all end-to-end tests
+	// TODO run only once over all end-to-end tests
 	if err := exec.Command("./build.sh").Run(); err != nil {
 		t.Fatal("Build failed: ", err)
 	}
@@ -47,8 +47,6 @@ func TestOrganizationIndexE2E(t *testing.T) {
 			t.Fatal(err)
 		}
 	}()
-	// TODO log to file
-	// logger := &logWriter{t}
 	file, _ := os.Create("test.log")
 	cmd := exec.Command("docker-compose", "logs", "--no-color")
 	cmd.Stdout = file
@@ -56,9 +54,12 @@ func TestOrganizationIndexE2E(t *testing.T) {
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
+	defer func() {
+		cmd.Process.Signal(os.Interrupt)
+		cmd.Wait()
+	}()
 
 	// Poll until server is healthy
-	// TODO extract
 	attempts := 0
 	startTS := time.Now()
 	for {
@@ -73,42 +74,44 @@ func TestOrganizationIndexE2E(t *testing.T) {
 			time.Sleep(time.Millisecond * 250)
 		}
 	}
+	testFunc(ip)
+}
 
-	// TEST
-	orgURL := fmt.Sprintf("http://%s%v/organizations", ip, port)
-	resp, err := http.Get(orgURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	buf := &bytes.Buffer{}
-	json.NewEncoder(buf).Encode([]organization{})
-	if res, err := ioutil.ReadAll(resp.Body); string(res) != string(buf.Bytes()) {
-		t.Fatalf("Response from server does not match. Expected: %s. Actual: %s.\n", buf.Bytes(), res)
-	} else if err != nil {
-		t.Fatal(err)
-	}
-	resp.Body.Close()
-	resp, err = http.PostForm(orgURL, url.Values{"name": {"foo"}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp.Body.Close()
-	resp, err = http.Get(orgURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	buf.Reset()
-	json.NewEncoder(buf).Encode([]organization{organization{
-		Name: "foo",
-	},
+func TestOrganizationIndexE2E(t *testing.T) {
+	e2e(t, func(ip []byte) {
+		orgURL := fmt.Sprintf("http://%s%v/organizations", ip, port)
+		resp, err := http.Get(orgURL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		buf := &bytes.Buffer{}
+		json.NewEncoder(buf).Encode([]organization{})
+		if res, err := ioutil.ReadAll(resp.Body); string(res) != string(buf.Bytes()) {
+			t.Fatalf("Response from server does not match. Expected: %s. Actual: %s.\n", buf.Bytes(), res)
+		} else if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		resp, err = http.PostForm(orgURL, url.Values{"name": {"foo"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		resp, err = http.Get(orgURL)
+		if err != nil {
+			t.Fatal(err)
+		}
+		buf.Reset()
+		json.NewEncoder(buf).Encode([]organization{organization{
+			Name: "foo",
+		},
+		})
+		if res, err := ioutil.ReadAll(resp.Body); string(res) != string(buf.Bytes()) {
+			t.Fatalf("Response from server does not match. Expected: %s. Actual: %s.\n", buf.Bytes(), res)
+		} else if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
 	})
-	if res, err := ioutil.ReadAll(resp.Body); string(res) != string(buf.Bytes()) {
-		t.Fatalf("Response from server does not match. Expected: %s. Actual: %s.\n", buf.Bytes(), res)
-	} else if err != nil {
-		t.Fatal(err)
-	}
-	resp.Body.Close()
 
-	cmd.Process.Signal(os.Interrupt)
-	cmd.Wait()
 }
