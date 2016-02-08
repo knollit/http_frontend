@@ -78,41 +78,38 @@ func e2e(t *testing.T, testFunc func([]byte)) {
 	testFunc(ip)
 }
 
+func assertGet(t *testing.T, url string, expected interface{}) {
+	resp, err := http.Get(url)
+	if err != nil {
+		t.Fatal(err)
+	}
+	buf := &bytes.Buffer{}
+	json.NewEncoder(buf).Encode(expected)
+	if res, err := ioutil.ReadAll(resp.Body); string(res) != string(buf.Bytes()) {
+		t.Fatalf("Response from server does not match. Expected: %s. Actual: %s.\n", buf.Bytes(), res)
+	} else if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+}
+
 func TestOrganizationIndexE2E(t *testing.T) {
 	e2e(t, func(ip []byte) {
 		orgURL := fmt.Sprintf("http://%s%v/organizations", ip, port)
-		resp, err := http.Get(orgURL)
-		if err != nil {
-			t.Fatal(err)
-		}
-		buf := &bytes.Buffer{}
-		json.NewEncoder(buf).Encode([]organization{})
-		if res, err := ioutil.ReadAll(resp.Body); string(res) != string(buf.Bytes()) {
-			t.Fatalf("Response from server does not match. Expected: %s. Actual: %s.\n", buf.Bytes(), res)
-		} else if err != nil {
-			t.Fatal(err)
-		}
-		resp.Body.Close()
-		resp, err = http.PostForm(orgURL, url.Values{"name": {"foo"}})
+
+		assertGet(t, orgURL, []organization{})
+
+		orgName := "testOrg"
+		resp, err := http.PostForm(orgURL, url.Values{"name": {orgName}})
 		if err != nil {
 			t.Fatal(err)
 		}
 		resp.Body.Close()
-		resp, err = http.Get(orgURL)
-		if err != nil {
-			t.Fatal(err)
-		}
-		buf.Reset()
-		json.NewEncoder(buf).Encode([]organization{organization{
-			Name: "foo",
+
+		assertGet(t, orgURL, []organization{organization{
+			Name: orgName,
 		},
 		})
-		if res, err := ioutil.ReadAll(resp.Body); string(res) != string(buf.Bytes()) {
-			t.Fatalf("Response from server does not match. Expected: %s. Actual: %s.\n", buf.Bytes(), res)
-		} else if err != nil {
-			t.Fatal(err)
-		}
-		resp.Body.Close()
 	})
 
 }
