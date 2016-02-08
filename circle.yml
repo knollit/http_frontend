@@ -1,3 +1,6 @@
+general:
+  artifacts:
+    - test.log
 machine:
   services:
     - docker

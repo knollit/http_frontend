@@ -47,6 +47,7 @@ func e2e(t *testing.T, testFunc func([]byte)) {
 			t.Fatal(err)
 		}
 	}()
+	// TODO timestamps
 	file, _ := os.Create("test.log")
 	cmd := exec.Command("docker-compose", "logs", "--no-color")
 	cmd.Stdout = file
