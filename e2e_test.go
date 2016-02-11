@@ -12,8 +12,7 @@ import (
 	"github.com/mikeraimondi/go_compose"
 )
 
-var context compose.TestContext
-
+// TODO should be inferred from go_compose
 const port = ":6080"
 
 func assertGet(t *testing.T, url string, expected interface{}) {
@@ -32,7 +31,7 @@ func assertGet(t *testing.T, url string, expected interface{}) {
 }
 
 func TestOrganizationIndexE2E(t *testing.T) {
-	compose.RunTest(t, &context, port, func(ip []byte) {
+	compose.RunTest(t, port, func(ip []byte) {
 		orgURL := fmt.Sprintf("http://%s%v/organizations", ip, port)
 
 		assertGet(t, orgURL, []organization{})
@@ -49,5 +48,25 @@ func TestOrganizationIndexE2E(t *testing.T) {
 		},
 		})
 	})
+}
 
+func TestEndpointReadE2E(t *testing.T) {
+	t.SkipNow()
+	compose.RunTest(t, port, func(ip []byte) {
+		endpointURL := fmt.Sprintf("http://%s%v/endpoint/", ip, port)
+
+		assertGet(t, endpointURL, []organization{})
+
+		orgName := "testOrg"
+		resp, err := http.PostForm(endpointURL, url.Values{"name": {orgName}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+
+		assertGet(t, endpointURL, []organization{organization{
+			Name: orgName,
+		},
+		})
+	})
 }
