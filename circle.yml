@@ -11,6 +11,8 @@ dependencies:
     - if [[ ! -e ~/flatbuffers/flatc ]]; then cd ~ && git clone https://github.com/google/flatbuffers.git && cd flatbuffers/ && cmake -G "Unix Makefiles" && make; fi
     - cp -f ~/flatbuffers/flatc ~/bin
     - flatc -g -o ~/.go_workspace/src/github.com/knollit/$CIRCLE_PROJECT_REPONAME/ *.fbs
+    - curl -L https://github.com/docker/compose/releases/download/1.6.0/docker-compose-`uname -s`-`uname -m` > ~/bin/docker-compose
+    - chmod +x ~/bin/docker-compose
 deployment:
   production:
     branch: master
