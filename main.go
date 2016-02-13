@@ -226,6 +226,8 @@ func (s *server) organizationsHandler(w http.ResponseWriter, r *http.Request) {
 		orgMsg := organizations.GetRootAsOrganization(buf.Bytes(), 0)
 		if len(orgMsg.Error()) > 0 {
 			w.WriteHeader(http.StatusBadRequest)
+		} else if r.Method == "POST" {
+			w.WriteHeader(http.StatusCreated)
 		}
 		response = append(response, organizationFromFlatBuffer(orgMsg))
 	}

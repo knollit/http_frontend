@@ -23,7 +23,7 @@ func assertGet(t *testing.T, url string, expected interface{}) {
 	buf := &bytes.Buffer{}
 	json.NewEncoder(buf).Encode(expected)
 	if res, err := ioutil.ReadAll(resp.Body); string(res) != string(buf.Bytes()) {
-		t.Fatalf("Response from server does not match. Expected: %s. Actual: %s.\n", buf.Bytes(), res)
+		t.Fatalf("Response from server does not match. Expected: %s. Actual: %s.\n", bytes.TrimSpace(buf.Bytes()), bytes.TrimSpace(res))
 	} else if err != nil {
 		t.Fatal(err)
 	}
@@ -41,6 +41,9 @@ func TestOrganizationIndexE2E(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("status code does not match. expected: %v. actual: %v\n", http.StatusCreated, resp.StatusCode)
+		}
 		resp.Body.Close()
 
 		assertGet(t, orgURL, []organization{organization{
@@ -51,22 +54,33 @@ func TestOrganizationIndexE2E(t *testing.T) {
 }
 
 func TestEndpointReadE2E(t *testing.T) {
-	t.SkipNow()
 	compose.RunTest(t, port, func(ip []byte) {
-		endpointURL := fmt.Sprintf("http://%s%v/endpoint/", ip, port)
-
-		assertGet(t, endpointURL, []organization{})
-
+		orgURL := fmt.Sprintf("http://%s%v/organizations", ip, port)
 		orgName := "testOrg"
-		resp, err := http.PostForm(endpointURL, url.Values{"name": {orgName}})
+		resp, err := http.PostForm(orgURL, url.Values{"name": {orgName}})
 		if err != nil {
 			t.Fatal(err)
 		}
 		resp.Body.Close()
 
-		assertGet(t, endpointURL, []organization{organization{
-			Name: orgName,
-		},
+		endpointURL := fmt.Sprintf("http://%s%v/testOrg/endpoints", ip, port)
+		resp, _ = http.Head(endpointURL + "/foobar")
+		if resp.StatusCode != http.StatusNotFound {
+			t.Fatalf("status code does not match. expected: %v. actual: %v.\n", http.StatusNotFound, resp.StatusCode)
+		}
+		resp.Body.Close()
+
+		resp, err = http.PostForm(endpointURL, url.Values{"url": {"some url"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("status code does not match. expected: %v. actual: %v\n", http.StatusCreated, resp.StatusCode)
+		}
+		resp.Body.Close()
+
+		assertGet(t, endpointURL, endpoint{
+			URL: "some url",
 		})
 	})
 }
