@@ -23,7 +23,7 @@ func assertGet(t *testing.T, url string, expected interface{}) {
 	buf := &bytes.Buffer{}
 	json.NewEncoder(buf).Encode(expected)
 	if res, err := ioutil.ReadAll(resp.Body); string(res) != string(buf.Bytes()) {
-		t.Fatalf("Response from server does not match. Expected: %s. Actual: %s.\n", bytes.TrimSpace(buf.Bytes()), bytes.TrimSpace(res))
+		t.Fatalf("response from server does not match. Expected: %s. Actual: %s.\n", bytes.TrimSpace(buf.Bytes()), bytes.TrimSpace(res))
 	} else if err != nil {
 		t.Fatal(err)
 	}
@@ -53,6 +53,10 @@ func TestOrganizationIndexE2E(t *testing.T) {
 	})
 }
 
+func TestEndpointPostE2E(t *testing.T) {
+	// TODO
+}
+
 func TestEndpointReadE2E(t *testing.T) {
 	compose.RunTest(t, port, func(ip []byte) {
 		orgURL := fmt.Sprintf("http://%s%v/organizations", ip, port)
@@ -63,24 +67,25 @@ func TestEndpointReadE2E(t *testing.T) {
 		}
 		resp.Body.Close()
 
-		endpointURL := fmt.Sprintf("http://%s%v/testOrg/endpoints", ip, port)
-		resp, _ = http.Head(endpointURL + "/foobar")
+		endpointURL := fmt.Sprintf("http://%s%v/organizations/%v/endpoints", ip, port, orgName)
+		resp, _ = http.Get(endpointURL + "/5ff0fcbd-8b51-11e5-a171-df11d9bd7d62")
+		resp.Body.Close()
 		if resp.StatusCode != http.StatusNotFound {
 			t.Fatalf("status code does not match. expected: %v. actual: %v.\n", http.StatusNotFound, resp.StatusCode)
 		}
-		resp.Body.Close()
 
 		resp, err = http.PostForm(endpointURL, url.Values{"url": {"some url"}})
 		if err != nil {
 			t.Fatal(err)
 		}
+		data, _ := ioutil.ReadAll(resp.Body)
+		resp.Body.Close()
+		newEndpoint := endpoint{}
+		json.Unmarshal(data, &newEndpoint)
 		if resp.StatusCode != http.StatusCreated {
 			t.Fatalf("status code does not match. expected: %v. actual: %v\n", http.StatusCreated, resp.StatusCode)
 		}
-		resp.Body.Close()
 
-		assertGet(t, endpointURL, endpoint{
-			URL: "some url",
-		})
+		assertGet(t, endpointURL+"/"+newEndpoint.ID, newEndpoint)
 	})
 }

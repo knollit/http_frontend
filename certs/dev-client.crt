@@ -1,27 +1,28 @@
 Certificate:
     Data:
         Version: 3 (0x2)
-        Serial Number: 14 (0xe)
-        Signature Algorithm: ecdsa-with-SHA1
+        Serial Number: 2 (0x2)
+    Signature Algorithm: ecdsa-with-SHA512
         Issuer: C=US, CN=dev.knollit.com, O=knollit
         Validity
-            Not Before: Jan 25 00:40:31 2016 GMT
-            Not After : Jan 22 00:40:31 2026 GMT
-        Subject: O=knollit, CN=client.knollit.com
+            Not Before: Feb 29 01:44:14 2016 GMT
+            Not After : Feb 26 01:44:14 2026 GMT
+        Subject: O=knollit, CN=client.dev.knollit.com
         Subject Public Key Info:
             Public Key Algorithm: id-ecPublicKey
-            EC Public Key:
+                Public-Key: (521 bit)
                 pub: 
-                    04:01:7e:fe:63:88:64:49:44:41:5f:e7:c1:89:60:
-                    a1:8b:6a:2c:aa:56:8c:1e:bc:e3:0c:4a:43:b2:dd:
-                    7b:fc:6e:d3:f9:e9:73:30:e7:60:e6:11:84:d9:8a:
-                    eb:ae:f8:80:85:18:d7:b0:57:c8:fe:c3:8c:15:b0:
-                    6f:38:6e:ab:97:a4:08:01:e6:2a:b7:d4:80:e0:e9:
-                    bb:80:4d:b3:45:c1:a1:8a:59:ff:67:81:cf:d0:b5:
-                    2d:4f:2b:04:8d:ed:7c:fc:aa:2e:9d:0a:9d:6c:82:
-                    fd:94:a9:cd:26:d8:ee:57:49:69:e5:4a:66:b3:d9:
-                    b8:d6:ff:25:00:89:3a:91:bf:6c:27:07:58
+                    04:00:bb:62:2f:cf:f7:c4:11:d4:3a:1e:2c:95:be:
+                    d1:dc:02:5f:09:14:1c:36:0e:58:6c:ff:9e:bf:09:
+                    cd:be:76:f4:08:40:ff:6d:9d:12:f5:03:a4:b1:62:
+                    96:5e:42:ec:3c:0d:76:67:1b:f8:d9:fd:47:c8:d1:
+                    b8:5b:c4:2c:01:a9:f3:00:ba:3c:60:be:ac:33:3b:
+                    d0:60:66:75:b2:35:ac:bf:56:35:c3:88:70:eb:96:
+                    b6:d3:72:f9:f3:e3:d2:6f:f6:7a:be:9a:2a:2b:ed:
+                    36:d5:a6:ef:cb:3e:e8:cb:68:71:af:3f:8e:67:f6:
+                    c8:b4:29:24:c9:32:af:39:68:53:83:c9:91
                 ASN1 OID: secp521r1
+                NIST CURVE: P-521
         X509v3 extensions:
             X509v3 Basic Constraints: 
                 CA:FALSE
@@ -29,25 +30,26 @@ Certificate:
                 TLS Web Client Authentication
             X509v3 Key Usage: 
                 Digital Signature, Key Encipherment
-    Signature Algorithm: ecdsa-with-SHA1
-        30:81:88:02:42:01:5f:bb:47:0e:9a:42:9d:2d:8a:63:08:93:
-        f2:70:64:05:1a:6f:e9:84:d8:b9:9d:28:a5:94:71:06:5b:12:
-        b0:b1:50:62:9b:b9:0c:ab:9b:68:58:fe:ad:89:b2:86:0b:15:
-        f8:f0:92:9b:91:7c:5e:16:78:03:63:62:04:17:dd:f6:db:02:
-        42:00:ec:48:b6:3b:8c:2e:8d:49:9a:a8:c4:c8:c2:0c:1f:ba:
-        3e:87:d6:b3:d6:39:e0:91:88:ef:95:f6:06:be:93:03:35:23:
-        a4:ed:9b:b7:fb:a6:72:99:55:80:e5:0b:bd:d6:21:ad:9b:d9:
-        54:0f:a4:2c:c6:41:9c:60:19:c9:56:34:d4
+    Signature Algorithm: ecdsa-with-SHA512
+         30:81:88:02:42:01:4c:4a:a9:c7:10:06:81:d1:22:0d:19:9b:
+         07:65:09:eb:2c:de:81:10:ab:d6:6d:e7:00:d9:7b:1f:2f:29:
+         e1:b6:82:ac:cd:3a:dd:0c:76:cb:6a:59:85:3f:2c:a0:a9:ab:
+         c6:a6:ff:6b:73:4c:e0:a6:c1:68:a6:c5:76:7a:1e:e0:8d:02:
+         42:00:cd:a7:23:e5:17:5f:a6:d2:98:07:6c:35:be:a4:63:78:
+         6d:71:80:3c:34:03:db:57:b9:af:90:b0:29:a9:8d:4e:f6:06:
+         9f:4c:28:c8:13:66:40:1d:f7:d6:7b:e4:b6:c1:05:86:25:8e:
+         cb:af:c7:ae:19:64:4d:61:67:8c:38:23:08
 -----BEGIN CERTIFICATE-----
-MIICDDCCAW6gAwIBAgIBDjAJBgcqhkjOPQQBMDkxCzAJBgNVBAYTAlVTMRgwFgYD
-VQQDDA9kZXYua25vbGxpdC5jb20xEDAOBgNVBAoMB2tub2xsaXQwHhcNMTYwMTI1
-MDA0MDMxWhcNMjYwMTIyMDA0MDMxWjAvMRAwDgYDVQQKDAdrbm9sbGl0MRswGQYD
-VQQDDBJjbGllbnQua25vbGxpdC5jb20wgZswEAYHKoZIzj0CAQYFK4EEACMDgYYA
-BAF+/mOIZElEQV/nwYlgoYtqLKpWjB684wxKQ7Lde/xu0/npczDnYOYRhNmK6674
-gIUY17BXyP7DjBWwbzhuq5ekCAHmKrfUgODpu4BNs0XBoYpZ/2eBz9C1LU8rBI3t
-fPyqLp0KnWyC/ZSpzSbY7ldJaeVKZrPZuNb/JQCJOpG/bCcHWKMvMC0wCQYDVR0T
-BAIwADATBgNVHSUEDDAKBggrBgEFBQcDAjALBgNVHQ8EBAMCBaAwCQYHKoZIzj0E
-AQOBjAAwgYgCQgFfu0cOmkKdLYpjCJPycGQFGm/phNi5nSillHEGWxKwsVBim7kM
-q5toWP6tibKGCxX48JKbkXxeFngDY2IEF9322wJCAOxItjuMLo1JmqjEyMIMH7o+
-h9az1jngkYjvlfYGvpMDNSOk7Zu3+6ZymVWA5Qu91iGtm9lUD6QsxkGcYBnJVjTU
+MIICEjCCAXOgAwIBAgIBAjAKBggqhkjOPQQDBDA5MQswCQYDVQQGEwJVUzEYMBYG
+A1UEAwwPZGV2Lmtub2xsaXQuY29tMRAwDgYDVQQKDAdrbm9sbGl0MB4XDTE2MDIy
+OTAxNDQxNFoXDTI2MDIyNjAxNDQxNFowMzEQMA4GA1UECgwHa25vbGxpdDEfMB0G
+A1UEAwwWY2xpZW50LmRldi5rbm9sbGl0LmNvbTCBmzAQBgcqhkjOPQIBBgUrgQQA
+IwOBhgAEALtiL8/3xBHUOh4slb7R3AJfCRQcNg5YbP+evwnNvnb0CED/bZ0S9QOk
+sWKWXkLsPA12Zxv42f1HyNG4W8QsAanzALo8YL6sMzvQYGZ1sjWsv1Y1w4hw65a2
+03L58+PSb/Z6vpoqK+021abvyz7oy2hxrz+OZ/bItCkkyTKvOWhTg8mRoy8wLTAJ
+BgNVHRMEAjAAMBMGA1UdJQQMMAoGCCsGAQUFBwMCMAsGA1UdDwQEAwIFoDAKBggq
+hkjOPQQDBAOBjAAwgYgCQgFMSqnHEAaB0SINGZsHZQnrLN6BEKvWbecA2XsfLynh
+toKszTrdDHbLalmFPyygqavGpv9rc0zgpsFopsV2eh7gjQJCAM2nI+UXX6bSmAds
+Nb6kY3htcYA8NAPbV7mvkLApqY1O9gafTCjIE2ZAHffWe+S2wQWGJY7Lr8euGWRN
+YWeMOCMI
 -----END CERTIFICATE-----

@@ -4,11 +4,11 @@ enum Action : byte { New, Index, Read }
 
 table Endpoint {
   id:string;
-  organization:string;
+  organizationID:string;
   URL:string;
-
   action:Action;
   error:string;
+  schema:string;
 }
 
 root_type Endpoint;

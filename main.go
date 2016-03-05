@@ -95,6 +95,7 @@ type server struct {
 func (s *server) handler() http.Handler {
 	r := mux.NewRouter()
 	r.HandleFunc("/organizations", s.organizationsHandler)
+	r.HandleFunc("/organizations/{organizationName}/endpoints", s.endpointHandler)
 	r.HandleFunc("/organizations/{organizationName}/endpoints/{endpointID}", s.endpointHandler)
 	r.HandleFunc("/health_check", s.healthCheckHandler)
 	return r
@@ -116,6 +117,22 @@ func (s *server) Close() error {
 
 func (s *server) endpointHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
+	endpoint := &endpoint{}
+	if r.Method == "POST" {
+		if err := r.ParseForm(); err != nil {
+			http.Error(w, "Bad request", http.StatusBadRequest)
+			return
+		}
+		endpoint.URL = r.Form.Get("url")
+		endpoint.Action = endpoints.ActionNew
+	} else if r.Method == "GET" {
+		endpoint.ID = vars["endpointID"]
+		endpoint.Action = endpoints.ActionRead
+	} else {
+		w.Header().Set("Allow", "GET, POST")
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 	b := s.builderPool.Get().(*flatbuffers.Builder)
 	defer s.builderPool.Put(b)
 
@@ -144,8 +161,12 @@ func (s *server) endpointHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Internal application error", http.StatusInternalServerError)
 		return
 	}
-	// TODO read org
-	// orgMsg := organizations.GetRootAsOrganization(buf, 0)
+	orgMsg := organizations.GetRootAsOrganization(buf.Bytes(), 0)
+	if endpoint.OrganizationID = string(orgMsg.ID()); len(endpoint.OrganizationID) == 0 {
+		log.Println("no organization ID returned")
+		http.Error(w, "Internal application error", http.StatusInternalServerError)
+		return
+	}
 
 	endpointConn, err := s.getEndpointSvcConn()
 	if err != nil {
@@ -154,26 +175,26 @@ func (s *server) endpointHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer endpointConn.Close()
-	endpoint := &endpoint{
-		ID: vars["endpointID"],
-		// TODO action
-	}
 	if _, err := prefixedio.WriteBytes(endpointConn, endpoint.toFlatBufferBytes(b)); err != nil {
-		log.Printf("Request error %v", err)
+		log.Print("endpoint request error: ", err)
 		http.Error(w, "Internal application error", http.StatusInternalServerError)
 		return
 	}
 	_, err = buf.ReadFrom(endpointConn)
 	if err != nil {
-		log.Printf("Request error %v", err)
+		log.Print("endpoint response error: ", err)
 		http.Error(w, "Internal application error", http.StatusInternalServerError)
 		return
 	}
 	endpointMsg := endpoints.GetRootAsEndpoint(buf.Bytes(), 0)
-	endpoint.URL = string(endpointMsg.URL())
+	endpoint.fromFlatBufferMsg(endpointMsg)
+	if len(endpointMsg.Error()) > 0 {
+		w.WriteHeader(http.StatusNotFound)
+	} else if r.Method == "POST" {
+		w.WriteHeader(http.StatusCreated)
+	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	json.NewEncoder(w).Encode(endpoint)
-	return
 }
 
 func (s *server) organizationsHandler(w http.ResponseWriter, r *http.Request) {
@@ -239,15 +260,18 @@ func (s *server) healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 	// TODO include DB check
 	conn, err := s.getOrgSvcConn()
 	if err != nil {
-		http.Error(w, "Organizations unavailable", http.StatusServiceUnavailable)
+		log.Println("health check error in organization service: ", err)
+		http.Error(w, "organizations unavailable", http.StatusServiceUnavailable)
 		return
 	}
 	conn.Close()
 	conn, err = s.getEndpointSvcConn()
 	if err != nil {
-		http.Error(w, "Endpoints unavailable", http.StatusServiceUnavailable)
+		log.Println("health check error in endpoint service: ", err)
+		http.Error(w, "endpoints unavailable", http.StatusServiceUnavailable)
 		return
 	}
 	conn.Close()
+	log.Println("health check OK")
 	w.WriteHeader(http.StatusNoContent)
 }

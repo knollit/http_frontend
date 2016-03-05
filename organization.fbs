@@ -6,6 +6,7 @@ table Organization {
   error:string;
   action:Action;
   name:string;
+  ID:string;
 }
 
 root_type Organization;
