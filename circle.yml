@@ -1,6 +1,3 @@
-general:
-  artifacts:
-    - test.log
 machine:
   services:
     - docker
@@ -11,6 +8,9 @@ dependencies:
     - if [[ ! -e ~/flatbuffers/flatc ]]; then cd ~ && git clone https://github.com/google/flatbuffers.git && cd flatbuffers/ && cmake -G "Unix Makefiles" && make; fi
     - cp -f ~/flatbuffers/flatc ~/bin
     - flatc -g -o ~/.go_workspace/src/github.com/knollit/$CIRCLE_PROJECT_REPONAME/ *.fbs
+test:
+  post:
+    - mv test.log $CIRCLE_ARTIFACTS/
 deployment:
   production:
     branch: master
