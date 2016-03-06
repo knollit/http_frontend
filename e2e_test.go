@@ -59,6 +59,7 @@ func TestEndpointPostE2E(t *testing.T) {
 
 func TestEndpointReadE2E(t *testing.T) {
 	compose.RunTest(t, port, func(ip []byte) {
+		// setup: create organization
 		orgURL := fmt.Sprintf("http://%s%v/organizations", ip, port)
 		orgName := "testOrg"
 		resp, err := http.PostForm(orgURL, url.Values{"name": {orgName}})
@@ -67,13 +68,8 @@ func TestEndpointReadE2E(t *testing.T) {
 		}
 		resp.Body.Close()
 
+		// setup: create endpoint
 		endpointURL := fmt.Sprintf("http://%s%v/organizations/%v/endpoints", ip, port, orgName)
-		resp, _ = http.Get(endpointURL + "/5ff0fcbd-8b51-11e5-a171-df11d9bd7d62")
-		resp.Body.Close()
-		if resp.StatusCode != http.StatusNotFound {
-			t.Fatalf("status code does not match. expected: %v. actual: %v.\n", http.StatusNotFound, resp.StatusCode)
-		}
-
 		resp, err = http.PostForm(endpointURL, url.Values{"url": {"some url"}})
 		if err != nil {
 			t.Fatal(err)
@@ -86,6 +82,7 @@ func TestEndpointReadE2E(t *testing.T) {
 			t.Fatalf("status code does not match. expected: %v. actual: %v\n", http.StatusCreated, resp.StatusCode)
 		}
 
+		// test: endpoint GET
 		assertGet(t, endpointURL+"/"+newEndpoint.ID, newEndpoint)
 	})
 }
