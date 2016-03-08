@@ -1,3 +1,5 @@
 organizations/
 endpoints/
 /test.log
+/dest/
+.envrc

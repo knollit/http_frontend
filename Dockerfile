@@ -1,6 +1,6 @@
 FROM centurylink/ca-certs
 
-COPY http_frontend /
+COPY dest /
 COPY certs /
 
 EXPOSE 80

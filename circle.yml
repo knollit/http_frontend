@@ -1,6 +1,8 @@
 machine:
   services:
     - docker
+  environment:
+    PROJECT_NAME: organization_svc
 dependencies:
   cache_directories:
     - ~/flatbuffers
@@ -15,8 +17,4 @@ deployment:
   production:
     branch: master
     commands:
-      - ./build.sh
-      - docker tag knollit/$CIRCLE_PROJECT_REPONAME:latest knollit/$CIRCLE_PROJECT_REPONAME:$CIRCLE_SHA1
-      - docker login -e $DOCKER_EMAIL -u $DOCKER_USER -p $DOCKER_PASS
-      - docker push knollit/$CIRCLE_PROJECT_REPONAME:$CIRCLE_SHA1
-      - docker push knollit/$CIRCLE_PROJECT_REPONAME:latest
+      - make publish
