@@ -9,7 +9,7 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/mikeraimondi/go_compose"
+	"github.com/mikeraimondi/go_compose_testing"
 )
 
 // TODO should be inferred from go_compose
@@ -31,7 +31,7 @@ func assertGet(t *testing.T, url string, expected interface{}) {
 }
 
 func TestOrganizationIndexE2E(t *testing.T) {
-	compose.RunTest(t, port, func(ip []byte) {
+	composeTesting.Run(t, port, func(ip []byte) {
 		orgURL := fmt.Sprintf("http://%s%v/organizations", ip, port)
 
 		assertGet(t, orgURL, []organization{})
@@ -58,7 +58,7 @@ func TestEndpointPostE2E(t *testing.T) {
 }
 
 func TestEndpointReadE2E(t *testing.T) {
-	compose.RunTest(t, port, func(ip []byte) {
+	composeTesting.Run(t, port, func(ip []byte) {
 		// setup: create organization
 		orgURL := fmt.Sprintf("http://%s%v/organizations", ip, port)
 		orgName := "testOrg"
