@@ -3,17 +3,48 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
+	"os/exec"
 	"testing"
+	"time"
 
-	"github.com/mikeraimondi/go_compose_testing"
+	"github.com/mikeraimondi/gompose_testing"
 )
 
-// TODO should be inferred from go_compose
 const port = ":6080"
+
+func TestMain(m *testing.M) {
+	gomposeTesting.RegisterBeforeCallback(func(t *testing.T) {
+		if err := exec.Command("make").Run(); err != nil {
+			t.Fatal("make failed: ", err)
+		}
+	})
+
+	gomposeTesting.RegisterBeforeEachCallback(func(t *testing.T, ip []byte) {
+		// poll until server is healthy
+		start := time.Now()
+		for func() bool {
+			resp, err := http.Head(fmt.Sprintf("http://%s%v/health_check", ip, port))
+			if err == nil && resp.StatusCode == 204 {
+				return false
+			}
+			return true
+		}() {
+			if time.Now().Sub(start) > time.Second*30 {
+				t.Fatal("timed out waiting for server to start.")
+			}
+			time.Sleep(time.Millisecond * 250)
+		}
+	})
+
+	flag.Parse()
+	os.Exit(m.Run())
+}
 
 func assertGet(t *testing.T, url string, expected interface{}) {
 	resp, err := http.Get(url)
@@ -31,7 +62,7 @@ func assertGet(t *testing.T, url string, expected interface{}) {
 }
 
 func TestOrganizationIndexE2E(t *testing.T) {
-	composeTesting.Run(t, port, func(ip []byte) {
+	gomposeTesting.Run(t, func(ip []byte) {
 		orgURL := fmt.Sprintf("http://%s%v/organizations", ip, port)
 
 		assertGet(t, orgURL, []organization{})
@@ -58,7 +89,7 @@ func TestEndpointPostE2E(t *testing.T) {
 }
 
 func TestEndpointReadE2E(t *testing.T) {
-	composeTesting.Run(t, port, func(ip []byte) {
+	gomposeTesting.Run(t, func(ip []byte) {
 		// setup: create organization
 		orgURL := fmt.Sprintf("http://%s%v/organizations", ip, port)
 		orgName := "testOrg"
