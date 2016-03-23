@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/tls"
 	"encoding/json"
 	"flag"
@@ -95,8 +96,8 @@ type server struct {
 func (s *server) handler() http.Handler {
 	r := mux.NewRouter()
 	r.HandleFunc("/organizations", s.organizationsHandler)
-	r.HandleFunc("/organizations/{organizationName}/endpoints", s.endpointHandler)
-	r.HandleFunc("/organizations/{organizationName}/endpoints/{endpointID}", s.endpointHandler)
+	r.HandleFunc("/organizations/{organizationName}/endpoints", s.endpointsHandler)
+	r.HandleFunc("/organizations/{organizationName}/endpoints/{endpointID}", s.endpointsHandler)
 	r.HandleFunc("/health_check", s.healthCheckHandler)
 	return r
 }
@@ -115,23 +116,38 @@ func (s *server) Close() error {
 	return nil
 }
 
-func (s *server) endpointHandler(w http.ResponseWriter, r *http.Request) {
+type methods map[string]struct{}
+
+func (m methods) permit(w http.ResponseWriter, r *http.Request) {
+	if _, ok := m[r.Method]; !ok {
+		buf := bytes.Buffer{}
+		for method := range m {
+			buf.WriteString(method)
+		}
+		w.Header().Set("Allow", buf.String())
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+}
+
+func (s *server) endpointsHandler(w http.ResponseWriter, r *http.Request) {
+	methods{
+		http.MethodGet:  {},
+		http.MethodPost: {},
+	}.permit(w, r)
+
 	vars := mux.Vars(r)
 	endpoint := &endpoint{}
-	if r.Method == "POST" {
+	if r.Method == http.MethodPost {
 		if err := r.ParseForm(); err != nil {
 			http.Error(w, "Bad request", http.StatusBadRequest)
 			return
 		}
 		endpoint.URL = r.Form.Get("url")
 		endpoint.Action = endpoints.ActionNew
-	} else if r.Method == "GET" {
+	} else if r.Method == http.MethodGet {
 		endpoint.ID = vars["endpointID"]
 		endpoint.Action = endpoints.ActionRead
-	} else {
-		w.Header().Set("Allow", "GET, POST")
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
 	}
 	b := s.builderPool.Get().(*flatbuffers.Builder)
 	defer s.builderPool.Put(b)
@@ -147,7 +163,7 @@ func (s *server) endpointHandler(w http.ResponseWriter, r *http.Request) {
 		Name:   vars["organizationName"],
 		action: organizations.ActionRead,
 	}
-	if _, err := prefixedio.WriteBytes(orgConn, organization.toFlatBufferBytes(b)); err != nil {
+	if _, err = prefixedio.WriteBytes(orgConn, organization.toFlatBufferBytes(b)); err != nil {
 		log.Printf("Request error %v", err)
 		http.Error(w, "Internal application error", http.StatusInternalServerError)
 		return
@@ -175,7 +191,7 @@ func (s *server) endpointHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer endpointConn.Close()
-	if _, err := prefixedio.WriteBytes(endpointConn, endpoint.toFlatBufferBytes(b)); err != nil {
+	if _, err = prefixedio.WriteBytes(endpointConn, endpoint.toFlatBufferBytes(b)); err != nil {
 		log.Print("endpoint request error: ", err)
 		http.Error(w, "Internal application error", http.StatusInternalServerError)
 		return
@@ -190,7 +206,7 @@ func (s *server) endpointHandler(w http.ResponseWriter, r *http.Request) {
 	endpoint.fromFlatBufferMsg(endpointMsg)
 	if len(endpointMsg.Error()) > 0 {
 		w.WriteHeader(http.StatusNotFound)
-	} else if r.Method == "POST" {
+	} else if r.Method == http.MethodPost {
 		w.WriteHeader(http.StatusCreated)
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -198,13 +214,18 @@ func (s *server) endpointHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) organizationsHandler(w http.ResponseWriter, r *http.Request) {
+	methods{
+		http.MethodGet:  {},
+		http.MethodPost: {},
+	}.permit(w, r)
+
 	b := s.builderPool.Get().(*flatbuffers.Builder)
 	defer s.builderPool.Put(b)
 
-	if r.Method == "GET" {
+	if r.Method == http.MethodGet {
 		organizations.OrganizationStart(b)
 		organizations.OrganizationAddAction(b, organizations.ActionIndex)
-	} else if r.Method == "POST" {
+	} else if r.Method == http.MethodPost {
 		if err := r.ParseForm(); err != nil {
 			http.Error(w, "Bad request", http.StatusBadRequest)
 			return
@@ -212,11 +233,8 @@ func (s *server) organizationsHandler(w http.ResponseWriter, r *http.Request) {
 		namePosition := b.CreateByteString([]byte(r.Form.Get("name")))
 		organizations.OrganizationStart(b)
 		organizations.OrganizationAddName(b, namePosition)
-	} else {
-		w.Header().Set("Allow", "GET, POST")
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
 	}
+
 	orgPosition := organizations.OrganizationEnd(b)
 	b.Finish(orgPosition)
 
@@ -227,7 +245,7 @@ func (s *server) organizationsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer conn.Close()
-	if _, err := prefixedio.WriteBytes(conn, b.Bytes[b.Head():]); err != nil {
+	if _, err = prefixedio.WriteBytes(conn, b.Bytes[b.Head():]); err != nil {
 		log.Printf("Request error %v", err)
 		http.Error(w, "Internal application error", http.StatusInternalServerError)
 		return
@@ -247,7 +265,7 @@ func (s *server) organizationsHandler(w http.ResponseWriter, r *http.Request) {
 		orgMsg := organizations.GetRootAsOrganization(buf.Bytes(), 0)
 		if len(orgMsg.Error()) > 0 {
 			w.WriteHeader(http.StatusBadRequest)
-		} else if r.Method == "POST" {
+		} else if r.Method == http.MethodPost {
 			w.WriteHeader(http.StatusCreated)
 		}
 		response = append(response, organizationFromFlatBuffer(orgMsg))
