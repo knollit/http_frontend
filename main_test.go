@@ -309,3 +309,41 @@ func TestPOSTEndpoint(t *testing.T) {
 		t.Fatalf("JSON URL does not match. expected: %v. actual: %v\n", endpoint.URL, endpointJSON["URL"])
 	}
 }
+
+func TestMethodNotAllowed(t *testing.T) {
+	t.Parallel()
+
+	// Start test server
+	s := newServer()
+	ts := httptest.NewServer(s.handler())
+	defer ts.Close()
+
+	c := http.Client{}
+	url, _ := url.Parse(fmt.Sprintf("%v/organizations/foobar/endpoints", ts.URL))
+
+	// Make test requests
+	unpermittedMethods := []string{
+		http.MethodPut,
+		http.MethodPatch,
+		http.MethodDelete,
+		http.MethodOptions,
+		http.MethodTrace,
+		// http.MethodConnect, TODO maybe?
+	}
+	for _, method := range unpermittedMethods {
+		req := &http.Request{
+			Method: method,
+			URL:    url,
+		}
+		res, err := c.Do(req)
+		if err != nil {
+			t.Fatal("error making request: ", err)
+		}
+
+		// Test response status
+		if expectedStatus := http.StatusMethodNotAllowed; res.StatusCode != expectedStatus {
+			t.Fatalf("Expected %v status, got %v", expectedStatus, res.StatusCode)
+		}
+		res.Body.Close()
+	}
+}

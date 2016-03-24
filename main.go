@@ -116,25 +116,29 @@ func (s *server) Close() error {
 	return nil
 }
 
-type methods map[string]struct{}
+type httpMethods map[string]struct{}
 
-func (m methods) permit(w http.ResponseWriter, r *http.Request) {
-	if _, ok := m[r.Method]; !ok {
+func (methods httpMethods) permit(method string, w http.ResponseWriter) bool {
+	if _, ok := methods[method]; !ok {
 		buf := bytes.Buffer{}
-		for method := range m {
-			buf.WriteString(method)
+		for m := range methods {
+			buf.WriteString(m)
 		}
 		w.Header().Set("Allow", buf.String())
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
+		return false
 	}
+	return true
 }
 
 func (s *server) endpointsHandler(w http.ResponseWriter, r *http.Request) {
-	methods{
+	ok := httpMethods{
 		http.MethodGet:  {},
 		http.MethodPost: {},
-	}.permit(w, r)
+	}.permit(r.Method, w)
+	if !ok {
+		return
+	}
 
 	vars := mux.Vars(r)
 	endpoint := &endpoint{}
@@ -214,10 +218,13 @@ func (s *server) endpointsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) organizationsHandler(w http.ResponseWriter, r *http.Request) {
-	methods{
+	ok := httpMethods{
 		http.MethodGet:  {},
 		http.MethodPost: {},
-	}.permit(w, r)
+	}.permit(r.Method, w)
+	if !ok {
+		return
+	}
 
 	b := s.builderPool.Get().(*flatbuffers.Builder)
 	defer s.builderPool.Put(b)
