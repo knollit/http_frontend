@@ -319,31 +319,43 @@ func TestMethodNotAllowed(t *testing.T) {
 	defer ts.Close()
 
 	c := http.Client{}
-	url, _ := url.Parse(fmt.Sprintf("%v/organizations/foobar/endpoints", ts.URL))
+	table := map[string][]string{
+		fmt.Sprintf("%v/organizations/foobar/endpoints", ts.URL): []string{
+			http.MethodPut,
+			http.MethodPatch,
+			http.MethodDelete,
+			http.MethodOptions,
+			http.MethodTrace,
+			// http.MethodConnect, TODO maybe?
+		},
+		fmt.Sprintf("%v/organizations", ts.URL): []string{
+			http.MethodPut,
+			http.MethodPatch,
+			http.MethodDelete,
+			http.MethodOptions,
+			http.MethodTrace,
+			// http.MethodConnect, TODO maybe?
+		},
+	}
 
 	// Make test requests
-	unpermittedMethods := []string{
-		http.MethodPut,
-		http.MethodPatch,
-		http.MethodDelete,
-		http.MethodOptions,
-		http.MethodTrace,
-		// http.MethodConnect, TODO maybe?
-	}
-	for _, method := range unpermittedMethods {
-		req := &http.Request{
-			Method: method,
-			URL:    url,
-		}
-		res, err := c.Do(req)
-		if err != nil {
-			t.Fatal("error making request: ", err)
-		}
+	for urlString, unpermittedMethods := range table {
+		testURL, _ := url.Parse(urlString)
+		for _, method := range unpermittedMethods {
+			req := &http.Request{
+				Method: method,
+				URL:    testURL,
+			}
+			res, err := c.Do(req)
+			if err != nil {
+				t.Fatal("error making request: ", err)
+			}
 
-		// Test response status
-		if expectedStatus := http.StatusMethodNotAllowed; res.StatusCode != expectedStatus {
-			t.Fatalf("Expected %v status, got %v", expectedStatus, res.StatusCode)
+			// Test response status
+			if expectedStatus := http.StatusMethodNotAllowed; res.StatusCode != expectedStatus {
+				t.Fatalf("Expected %v status, got %v", expectedStatus, res.StatusCode)
+			}
+			res.Body.Close()
 		}
-		res.Body.Close()
 	}
 }
