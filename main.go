@@ -1,12 +1,10 @@
 package main
 
 import (
-	"bytes"
 	"crypto/tls"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"net/http"
@@ -15,16 +13,19 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/google/flatbuffers/go"
 	"github.com/gorilla/mux"
 	"github.com/knollit/http_frontend/endpoints"
 	"github.com/knollit/http_frontend/organizations"
-	"github.com/mikeraimondi/prefixedio"
 )
 
 var (
 	certPath = flag.String("cert-path", os.Getenv("TLS_CERT_PATH"), "Path to cert file")
 	keyPath  = flag.String("key-path", os.Getenv("TLS_KEY_PATH"), "Path to private key file")
+)
+
+const (
+	contentTypeHeader    = "Content-Type"
+	jsonContentTypeValue = "application/json; charset=utf-8"
 )
 
 func main() {
@@ -72,25 +73,43 @@ func main() {
 }
 
 func newServer() *server {
-	return &server{
-		builderPool: sync.Pool{
-			New: func() interface{} {
-				return flatbuffers.NewBuilder(0)
-			},
-		},
-		prefixedBufPool: sync.Pool{
-			New: func() interface{} {
-				return &prefixedio.Buffer{}
-			},
+	s := &server{}
+	s.orgSvcPool = sync.Pool{
+		New: func() interface{} {
+			return newOrganizationService(s.getOrgSvcConn)
 		},
 	}
+	s.endpointSvcPool = sync.Pool{
+		New: func() interface{} {
+			return newEndpointService(s.getEndpointSvcConn)
+		},
+	}
+	return s
 }
 
 type server struct {
 	getOrgSvcConn      func() (net.Conn, error)
 	getEndpointSvcConn func() (net.Conn, error)
-	builderPool        sync.Pool
-	prefixedBufPool    sync.Pool
+	orgSvcPool         sync.Pool
+	endpointSvcPool    sync.Pool
+}
+
+func (s *server) getOrgSvc() *organizationService {
+	return s.orgSvcPool.Get().(*organizationService)
+}
+
+func (s *server) putOrgSvc(orgSvc *organizationService) {
+	orgSvc.reset()
+	s.orgSvcPool.Put(orgSvc)
+}
+
+func (s *server) getEndpointSvc() *endpointService {
+	return s.endpointSvcPool.Get().(*endpointService)
+}
+
+func (s *server) putEndpointSvc(endpointSvc *endpointService) {
+	endpointSvc.reset()
+	s.endpointSvcPool.Put(endpointSvc)
 }
 
 func (s *server) handler() http.Handler {
@@ -116,21 +135,6 @@ func (s *server) Close() error {
 	return nil
 }
 
-type httpMethods map[string]struct{}
-
-func (methods httpMethods) permit(method string, w http.ResponseWriter) bool {
-	if _, ok := methods[method]; !ok {
-		buf := bytes.Buffer{}
-		for m := range methods {
-			buf.WriteString(m)
-		}
-		w.Header().Set("Allow", buf.String())
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return false
-	}
-	return true
-}
-
 func (s *server) endpointsHandler(w http.ResponseWriter, r *http.Request) {
 	ok := httpMethods{
 		http.MethodGet:  {},
@@ -141,6 +145,8 @@ func (s *server) endpointsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	vars := mux.Vars(r)
+	endpointSvc := s.getEndpointSvc()
+	defer s.putEndpointSvc(endpointSvc)
 	endpoint := &endpoint{}
 	if r.Method == http.MethodPost {
 		if err := r.ParseForm(); err != nil {
@@ -153,68 +159,42 @@ func (s *server) endpointsHandler(w http.ResponseWriter, r *http.Request) {
 		endpoint.ID = vars["endpointID"]
 		endpoint.Action = endpoints.ActionRead
 	}
-	b := s.builderPool.Get().(*flatbuffers.Builder)
-	defer s.builderPool.Put(b)
 
-	orgConn, err := s.getOrgSvcConn()
-	if err != nil {
-		log.Printf("Request error %v", err)
-		http.Error(w, "Internal application error", http.StatusInternalServerError)
-		return
-	}
-	defer orgConn.Close()
-	organization := &organization{
+	orgSvc := s.getOrgSvc()
+	defer s.putOrgSvc(orgSvc)
+	org := &organization{
 		Name:   vars["organizationName"],
 		action: organizations.ActionRead,
 	}
-	if _, err = prefixedio.WriteBytes(orgConn, organization.toFlatBufferBytes(b)); err != nil {
-		log.Printf("Request error %v", err)
-		http.Error(w, "Internal application error", http.StatusInternalServerError)
-		return
-	}
-
-	buf := s.prefixedBufPool.Get().(*prefixedio.Buffer)
-	defer s.prefixedBufPool.Put(buf)
-	_, err = buf.ReadFrom(orgConn)
+	orgs, err := orgSvc.sync(org)
 	if err != nil {
-		log.Printf("Request error %v", err)
-		http.Error(w, "Internal application error", http.StatusInternalServerError)
+		log.Printf("org request error %v", err)
+		http.Error(w, "internal application error", http.StatusInternalServerError)
 		return
 	}
-	orgMsg := organizations.GetRootAsOrganization(buf.Bytes(), 0)
-	if endpoint.OrganizationID = string(orgMsg.ID()); len(endpoint.OrganizationID) == 0 {
+	orgResp := orgs[0]
+	if endpoint.OrganizationID = orgResp.Name; len(endpoint.OrganizationID) == 0 {
+		// TODO 404?
 		log.Println("no organization ID returned")
-		http.Error(w, "Internal application error", http.StatusInternalServerError)
+		http.Error(w, "internal application error", http.StatusInternalServerError)
 		return
 	}
 
-	endpointConn, err := s.getEndpointSvcConn()
+	endpointResponses, err := endpointSvc.sync(endpoint)
 	if err != nil {
-		log.Printf("Request error %v", err)
-		http.Error(w, "Internal application error", http.StatusInternalServerError)
+		log.Printf("org request error %v", err)
+		http.Error(w, "internal application error", http.StatusInternalServerError)
 		return
 	}
-	defer endpointConn.Close()
-	if _, err = prefixedio.WriteBytes(endpointConn, endpoint.toFlatBufferBytes(b)); err != nil {
-		log.Print("endpoint request error: ", err)
-		http.Error(w, "Internal application error", http.StatusInternalServerError)
-		return
-	}
-	_, err = buf.ReadFrom(endpointConn)
-	if err != nil {
-		log.Print("endpoint response error: ", err)
-		http.Error(w, "Internal application error", http.StatusInternalServerError)
-		return
-	}
-	endpointMsg := endpoints.GetRootAsEndpoint(buf.Bytes(), 0)
-	endpoint.fromFlatBufferMsg(endpointMsg)
-	if len(endpointMsg.Error()) > 0 {
+	endpointResponse := endpointResponses[0]
+	if endpointResponse.err != nil {
 		w.WriteHeader(http.StatusNotFound)
 	} else if r.Method == http.MethodPost {
 		w.WriteHeader(http.StatusCreated)
 	}
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	json.NewEncoder(w).Encode(endpoint)
+
+	w.Header().Set(contentTypeHeader, jsonContentTypeValue)
+	json.NewEncoder(w).Encode(endpointResponse)
 }
 
 func (s *server) organizationsHandler(w http.ResponseWriter, r *http.Request) {
@@ -226,59 +206,40 @@ func (s *server) organizationsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	b := s.builderPool.Get().(*flatbuffers.Builder)
-	defer s.builderPool.Put(b)
+	orgSvc := s.getOrgSvc()
+	defer s.putOrgSvc(orgSvc)
+	org := &organization{}
 
 	if r.Method == http.MethodGet {
-		organizations.OrganizationStart(b)
-		organizations.OrganizationAddAction(b, organizations.ActionIndex)
+		org.action = organizations.ActionIndex
 	} else if r.Method == http.MethodPost {
 		if err := r.ParseForm(); err != nil {
 			http.Error(w, "Bad request", http.StatusBadRequest)
 			return
 		}
-		namePosition := b.CreateByteString([]byte(r.Form.Get("name")))
-		organizations.OrganizationStart(b)
-		organizations.OrganizationAddName(b, namePosition)
+		org.Name = r.Form.Get("name")
 	}
 
-	orgPosition := organizations.OrganizationEnd(b)
-	b.Finish(orgPosition)
-
-	conn, err := s.getOrgSvcConn()
+	orgs, err := orgSvc.sync(org)
 	if err != nil {
-		log.Printf("Request error %v", err)
-		http.Error(w, "Internal application error", http.StatusInternalServerError)
+		log.Printf("org request error %v", err)
+		http.Error(w, "internal application error", http.StatusInternalServerError)
 		return
 	}
-	defer conn.Close()
-	if _, err = prefixedio.WriteBytes(conn, b.Bytes[b.Head():]); err != nil {
-		log.Printf("Request error %v", err)
-		http.Error(w, "Internal application error", http.StatusInternalServerError)
-		return
-	}
-	response := []organization{}
-	buf := s.prefixedBufPool.Get().(*prefixedio.Buffer)
-	defer s.prefixedBufPool.Put(buf)
-	for {
-		_, err = buf.ReadFrom(conn)
-		if err == io.EOF {
+	valid := true
+	for _, orgResp := range orgs {
+		if orgResp.err != nil {
+			valid = false
 			break
-		} else if err != nil {
-			log.Printf("Response error %v", err)
-			http.Error(w, "Internal application error", http.StatusInternalServerError)
-			return
 		}
-		orgMsg := organizations.GetRootAsOrganization(buf.Bytes(), 0)
-		if len(orgMsg.Error()) > 0 {
-			w.WriteHeader(http.StatusBadRequest)
-		} else if r.Method == http.MethodPost {
-			w.WriteHeader(http.StatusCreated)
-		}
-		response = append(response, organizationFromFlatBuffer(orgMsg))
 	}
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	json.NewEncoder(w).Encode(response)
+	if !valid {
+		w.WriteHeader(http.StatusBadRequest)
+	} else if r.Method == http.MethodPost {
+		w.WriteHeader(http.StatusCreated)
+	}
+	w.Header().Set(contentTypeHeader, jsonContentTypeValue)
+	json.NewEncoder(w).Encode(orgs)
 }
 
 func (s *server) healthCheckHandler(w http.ResponseWriter, r *http.Request) {

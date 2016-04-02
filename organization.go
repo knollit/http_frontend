@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+
 	"github.com/google/flatbuffers/go"
 	"github.com/knollit/http_frontend/organizations"
 )
@@ -9,13 +11,14 @@ type organization struct {
 	ID     string `json:"id"`
 	Name   string `json:"name"`
 	action int8
-	err    string
+	err    error
 }
 
-func organizationFromFlatBuffer(org *organizations.Organization) organization {
-	return organization{
-		Name: string(org.Name()),
-		err:  string(org.Error()),
+func (org *organization) fromFlatBufferMsg(msg *organizations.Organization) {
+	org.Name = string(msg.Name())
+	org.ID = string(msg.ID())
+	if len(msg.Error()) > 0 {
+		org.err = errors.New(string(msg.Error()))
 	}
 }
 

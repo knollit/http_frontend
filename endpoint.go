@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+
 	"github.com/google/flatbuffers/go"
 	"github.com/knollit/http_frontend/endpoints"
 )
@@ -20,6 +22,9 @@ func (e *endpoint) fromFlatBufferMsg(msg *endpoints.Endpoint) {
 	e.URL = string(msg.URL())
 	e.ID = string(msg.Id())
 	e.OrganizationID = string(msg.OrganizationID())
+	if len(msg.Error()) > 0 {
+		e.err = errors.New(string(msg.Error()))
+	}
 }
 
 func (e *endpoint) toFlatBufferBytes(b *flatbuffers.Builder) []byte {
