@@ -74,14 +74,9 @@ func main() {
 
 func newServer() *server {
 	s := &server{}
-	s.orgSvcPool = sync.Pool{
+	s.servicePool = sync.Pool{
 		New: func() interface{} {
-			return newOrganizationService(s.getOrgSvcConn)
-		},
-	}
-	s.endpointSvcPool = sync.Pool{
-		New: func() interface{} {
-			return newEndpointService(s.getEndpointSvcConn)
+			return newService(s)
 		},
 	}
 	return s
@@ -90,26 +85,16 @@ func newServer() *server {
 type server struct {
 	getOrgSvcConn      func() (net.Conn, error)
 	getEndpointSvcConn func() (net.Conn, error)
-	orgSvcPool         sync.Pool
-	endpointSvcPool    sync.Pool
+	servicePool        sync.Pool
 }
 
-func (s *server) getOrgSvc() *organizationService {
-	return s.orgSvcPool.Get().(*organizationService)
+func (s *server) getService() *service {
+	return s.servicePool.Get().(*service)
 }
 
-func (s *server) putOrgSvc(orgSvc *organizationService) {
-	orgSvc.reset()
-	s.orgSvcPool.Put(orgSvc)
-}
-
-func (s *server) getEndpointSvc() *endpointService {
-	return s.endpointSvcPool.Get().(*endpointService)
-}
-
-func (s *server) putEndpointSvc(endpointSvc *endpointService) {
-	endpointSvc.reset()
-	s.endpointSvcPool.Put(endpointSvc)
+func (s *server) putService(svc *service) {
+	svc.reset()
+	s.servicePool.Put(svc)
 }
 
 func (s *server) handler() http.Handler {
@@ -145,48 +130,46 @@ func (s *server) endpointsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	vars := mux.Vars(r)
-	endpointSvc := s.getEndpointSvc()
-	defer s.putEndpointSvc(endpointSvc)
-	endpoint := &endpoint{}
+	svc := s.getService()
+	defer s.putService(svc)
+	thisEndpoint := &endpoint{}
 	if r.Method == http.MethodPost {
 		if err := r.ParseForm(); err != nil {
 			http.Error(w, "Bad request", http.StatusBadRequest)
 			return
 		}
-		endpoint.URL = r.Form.Get("url")
-		endpoint.Action = endpoints.ActionNew
+		thisEndpoint.URL = r.Form.Get("url")
+		thisEndpoint.Action = endpoints.ActionNew
 	} else if r.Method == http.MethodGet {
-		endpoint.ID = vars["endpointID"]
-		endpoint.Action = endpoints.ActionRead
+		thisEndpoint.ID = vars["endpointID"]
+		thisEndpoint.Action = endpoints.ActionRead
 	}
 
-	orgSvc := s.getOrgSvc()
-	defer s.putOrgSvc(orgSvc)
 	org := &organization{
 		Name:   vars["organizationName"],
 		action: organizations.ActionRead,
 	}
-	orgs, err := orgSvc.sync(org)
+	orgs, err := svc.sync(org)
 	if err != nil {
 		log.Printf("org request error %v", err)
 		http.Error(w, "internal application error", http.StatusInternalServerError)
 		return
 	}
-	orgResp := orgs[0]
-	if endpoint.OrganizationID = orgResp.Name; len(endpoint.OrganizationID) == 0 {
+	orgResp := orgs[0].(*organization)
+	if thisEndpoint.OrganizationID = orgResp.Name; len(thisEndpoint.OrganizationID) == 0 {
 		// TODO 404?
 		log.Println("no organization ID returned")
 		http.Error(w, "internal application error", http.StatusInternalServerError)
 		return
 	}
 
-	endpointResponses, err := endpointSvc.sync(endpoint)
+	endpointResponses, err := svc.sync(thisEndpoint)
 	if err != nil {
 		log.Printf("org request error %v", err)
 		http.Error(w, "internal application error", http.StatusInternalServerError)
 		return
 	}
-	endpointResponse := endpointResponses[0]
+	endpointResponse := endpointResponses[0].(*endpoint)
 	if endpointResponse.err != nil {
 		w.WriteHeader(http.StatusNotFound)
 	} else if r.Method == http.MethodPost {
@@ -206,8 +189,8 @@ func (s *server) organizationsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgSvc := s.getOrgSvc()
-	defer s.putOrgSvc(orgSvc)
+	svc := s.getService()
+	defer s.putService(svc)
 	org := &organization{}
 
 	if r.Method == http.MethodGet {
@@ -220,7 +203,7 @@ func (s *server) organizationsHandler(w http.ResponseWriter, r *http.Request) {
 		org.Name = r.Form.Get("name")
 	}
 
-	orgs, err := orgSvc.sync(org)
+	orgs, err := svc.sync(org)
 	if err != nil {
 		log.Printf("org request error %v", err)
 		http.Error(w, "internal application error", http.StatusInternalServerError)
@@ -228,7 +211,8 @@ func (s *server) organizationsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	valid := true
 	for _, orgResp := range orgs {
-		if orgResp.err != nil {
+		orgRes := orgResp.(*organization)
+		if orgRes.err != nil {
 			valid = false
 			break
 		}

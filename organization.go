@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"net"
 
 	"github.com/google/flatbuffers/go"
 	"github.com/knollit/http_frontend/organizations"
@@ -12,6 +13,18 @@ type organization struct {
 	Name   string `json:"name"`
 	action int8
 	err    error
+}
+
+func (org *organization) new() serviceMsg {
+	return &organization{}
+}
+
+func (org *organization) getConn(s *server) (net.Conn, error) {
+	return s.getOrgSvcConn()
+}
+
+func (org *organization) fromBytes(bytes []byte) {
+	org.fromFlatBufferMsg(organizations.GetRootAsOrganization(bytes, 0))
 }
 
 func (org *organization) fromFlatBufferMsg(msg *organizations.Organization) {

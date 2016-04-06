@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"net"
 
 	"github.com/google/flatbuffers/go"
 	"github.com/knollit/http_frontend/endpoints"
@@ -16,6 +17,18 @@ type endpoint struct {
 	Schema         string
 	Action         int8 `json:"-"`
 	err            error
+}
+
+func (e *endpoint) new() serviceMsg {
+	return &endpoint{}
+}
+
+func (e *endpoint) getConn(s *server) (net.Conn, error) {
+	return s.getEndpointSvcConn()
+}
+
+func (e *endpoint) fromBytes(bytes []byte) {
+	e.fromFlatBufferMsg(endpoints.GetRootAsEndpoint(bytes, 0))
 }
 
 func (e *endpoint) fromFlatBufferMsg(msg *endpoints.Endpoint) {
